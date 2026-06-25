@@ -17,6 +17,9 @@ export type BookingStatus =
   | 'CANCELLED';
 
 export type BookingActorType = 'CUSTOMER' | 'OPS' | 'MECHANIC' | 'ADMIN' | 'SYSTEM';
+export type InspectionIssueSeverity = 'CRITICAL' | 'RECOMMENDED' | 'OPTIONAL';
+export type IssueApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type ServiceTaskStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
 
 export type Customer = {
   id: string;
@@ -74,6 +77,86 @@ export type BookingTimelineEvent = {
 
 export type BookingDetail = ServiceBooking & {
   timeline: BookingTimelineEvent[];
+};
+
+export type InspectionIssue = {
+  id: string;
+  title: string;
+  description?: string | null;
+  severity: InspectionIssueSeverity;
+  estimatedPartsCost: number;
+  estimatedLaborCost: number;
+  imageUrls: string[];
+  approvalStatus: IssueApprovalStatus;
+  customerDecisionAt?: string | null;
+  customerDecisionById?: string | null;
+  customerDecisionByName?: string | null;
+  customerDecisionNote?: string | null;
+};
+
+export type InspectionApprovalSummary = {
+  totalIssues: number;
+  pendingIssues: number;
+  criticalIssues: number;
+  criticalApproved: number;
+  criticalRejected: number;
+  approvalComplete: boolean;
+  allCriticalApproved: boolean;
+  canStartService: boolean;
+};
+
+export type InspectionReport = {
+  id: string;
+  bookingId: string;
+  summary?: string | null;
+  createdByType: BookingActorType;
+  createdById?: string | null;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+  issues: InspectionIssue[];
+  approvalSummary: InspectionApprovalSummary;
+};
+
+export type ServicePartUsage = {
+  id: string;
+  partId: string;
+  sku: string;
+  name: string;
+  manufacturer: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  batchCode?: string | null;
+  verifiedAt?: string | null;
+};
+
+export type ServiceTask = {
+  id: string;
+  serviceOrderId: string;
+  bookingId: string;
+  bookingStatus: BookingStatus;
+  name: string;
+  description?: string | null;
+  status: ServiceTaskStatus;
+  assignedMechanicId?: string | null;
+  assignedMechanicName?: string | null;
+  notes?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  partsUsed: ServicePartUsage[];
+};
+
+export type ServiceExecutionBoard = {
+  bookingId: string;
+  bookingStatus: BookingStatus;
+  serviceOrderId: string;
+  serviceOrderStatus: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  tasks: ServiceTask[];
 };
 
 const apiBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:4000';
@@ -137,6 +220,46 @@ export const api = {
   updateBookingStatus(bookingId: string, input: JsonObject) {
     return request<BookingDetail>(`/bookings/${bookingId}/status`, {
       method: 'PATCH',
+      body: JSON.stringify(input)
+    });
+  },
+
+  createInspectionReport(bookingId: string, input: JsonObject) {
+    return request<InspectionReport>(`/bookings/${bookingId}/inspection-report`, {
+      method: 'POST',
+      body: JSON.stringify(input)
+    });
+  },
+
+  getInspectionReport(bookingId: string) {
+    return request<InspectionReport>(`/bookings/${bookingId}/inspection-report`);
+  },
+
+  approveInspectionIssue(issueId: string, input: JsonObject) {
+    return request<InspectionReport>(`/inspection-issues/${issueId}/approval`, {
+      method: 'PATCH',
+      body: JSON.stringify(input)
+    });
+  },
+
+  getServiceExecution(bookingId: string) {
+    return request<ServiceExecutionBoard>(`/bookings/${bookingId}/service-execution`);
+  },
+
+  listMechanicTasks(mechanicId: string) {
+    return request<ServiceTask[]>(`/mechanics/${mechanicId}/service-tasks`);
+  },
+
+  updateServiceTask(taskId: string, input: JsonObject) {
+    return request<ServiceTask>(`/service-tasks/${taskId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input)
+    });
+  },
+
+  addServiceTaskPart(taskId: string, input: JsonObject) {
+    return request<ServiceTask>(`/service-tasks/${taskId}/parts`, {
+      method: 'POST',
       body: JSON.stringify(input)
     });
   }

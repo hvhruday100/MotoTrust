@@ -10,12 +10,14 @@ import { CreateServiceBookingDto } from './dto/create-service-booking.dto';
 import { ServiceBookingResponseDto } from './dto/service-booking-response.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
 import { BookingWithRelations } from './types/booking-with-relations.type';
+import { ServiceExecutionService } from '../service-execution/service-execution.service';
 
 @Injectable()
 export class BookingsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly pricingService: PricingService
+    private readonly pricingService: PricingService,
+    private readonly serviceExecutionService: ServiceExecutionService
   ) {}
 
   async create(dto: CreateServiceBookingDto): Promise<ServiceBookingResponseDto> {
@@ -156,6 +158,14 @@ export class BookingsService {
       });
     }
 
+    if (dto.nextStatus === BookingStatus.AWAITING_CUSTOMER_APPROVAL) {
+      await this.assertInspectionReportExists(bookingId);
+    }
+
+    if (dto.nextStatus === BookingStatus.IN_SERVICE) {
+      await this.assertBookingCanMoveToInService(bookingId);
+    }
+
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.bookingTimelineEvent.create({
         data: {
@@ -168,6 +178,10 @@ export class BookingsService {
           note: dto.note?.trim()
         }
       });
+
+      if (dto.nextStatus === BookingStatus.IN_SERVICE) {
+        await this.serviceExecutionService.initializeForBookingInService(tx, bookingId);
+      }
 
       return tx.booking.update({
         where: { id: bookingId },
@@ -194,6 +208,44 @@ export class BookingsService {
       state: address.state.trim(),
       pincode: address.pincode.trim()
     };
+  }
+
+  private async assertInspectionReportExists(bookingId: string): Promise<void> {
+    const report = await this.prisma.inspectionReport.findUnique({
+      where: { bookingId },
+      select: { id: true }
+    });
+
+    if (!report) {
+      throw new BadRequestException('Inspection report is required before awaiting customer approval.');
+    }
+  }
+
+  private async assertBookingCanMoveToInService(bookingId: string): Promise<void> {
+    const report = await this.prisma.inspectionReport.findUnique({
+      where: { bookingId },
+      include: { issues: true }
+    });
+
+    if (!report) {
+      throw new BadRequestException('Inspection report is required before moving a booking to IN_SERVICE.');
+    }
+
+    if (!report.issues.length) {
+      throw new BadRequestException('Inspection report must contain at least one issue before moving to IN_SERVICE.');
+    }
+
+    const pendingIssues = report.issues.filter((issue) => issue.approvalStatus === 'PENDING');
+    if (pendingIssues.length > 0) {
+      throw new BadRequestException('All inspection issues must be approved or rejected before moving to IN_SERVICE.');
+    }
+
+    const criticalNotApproved = report.issues.filter(
+      (issue) => issue.severity === 'CRITICAL' && issue.approvalStatus !== 'APPROVED'
+    );
+    if (criticalNotApproved.length > 0) {
+      throw new BadRequestException('All CRITICAL inspection items must be approved before moving to IN_SERVICE.');
+    }
   }
 
   private toResponse(booking: BookingWithRelations): ServiceBookingResponseDto {

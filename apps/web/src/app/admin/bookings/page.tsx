@@ -65,7 +65,11 @@ export default async function AdminBookingsPage() {
               <p>
                 {formatCurrency(booking.quotedPrice)} · {formatStatus(booking.status)}
               </p>
-              <Link href={`/bookings/progress?bookingId=${booking.id}`}>View timeline</Link>
+              <div className="actions">
+                <Link href={`/bookings/progress?bookingId=${booking.id}`}>View timeline</Link>
+                <Link href={`/admin/inspections?bookingId=${booking.id}`}>Inspection</Link>
+                <Link href={`/admin/service-execution?bookingId=${booking.id}`}>Service board</Link>
+              </div>
             </div>
 
             <form action={updateBookingStatus} className="status-form">
@@ -100,4 +104,3 @@ export default async function AdminBookingsPage() {
     </main>
   );
 }
-

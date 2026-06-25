@@ -18,6 +18,8 @@ export const bookingStatuses = [
 ] as const;
 
 export const bookingActorTypes = ['CUSTOMER', 'OPS', 'MECHANIC', 'ADMIN', 'SYSTEM'] as const;
+export const inspectionIssueSeverities = ['CRITICAL', 'RECOMMENDED', 'OPTIONAL'] as const;
+export const issueApprovalStatuses = ['PENDING', 'APPROVED', 'REJECTED'] as const;
 
 export const registerCustomerSchema = z
   .object({
@@ -77,10 +79,38 @@ export const updateBookingStatusSchema = z.object({
   note: z.string().max(1000).optional()
 });
 
+export const inspectionIssueSchema = z.object({
+  title: z.string().min(2).max(120),
+  description: z.string().max(1000).optional(),
+  severity: z.enum(inspectionIssueSeverities),
+  estimatedPartsCost: z.number().nonnegative(),
+  estimatedLaborCost: z.number().nonnegative(),
+  imageUrls: z.array(z.string().url()).default([])
+});
+
+export const createInspectionReportSchema = z.object({
+  summary: z.string().max(1000).optional(),
+  createdByType: z.enum(bookingActorTypes),
+  createdById: z.string().max(160).optional(),
+  createdByName: z.string().min(2).max(120),
+  issues: z.array(inspectionIssueSchema).min(1)
+});
+
+export const approveInspectionIssueSchema = z.object({
+  approvalStatus: z.enum(['APPROVED', 'REJECTED']),
+  actorId: z.string().max(160).optional(),
+  actorName: z.string().min(2).max(120),
+  note: z.string().max(1000).optional()
+});
+
 export type BookingStatus = (typeof bookingStatuses)[number];
 export type BookingActorType = (typeof bookingActorTypes)[number];
+export type InspectionIssueSeverity = (typeof inspectionIssueSeverities)[number];
+export type IssueApprovalStatus = (typeof issueApprovalStatuses)[number];
 export type RegisterCustomerInput = z.infer<typeof registerCustomerSchema>;
 export type MotorcycleInput = z.infer<typeof motorcycleSchema>;
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 export type CreateServiceBookingInput = z.infer<typeof createServiceBookingSchema>;
 export type UpdateBookingStatusInput = z.infer<typeof updateBookingStatusSchema>;
+export type CreateInspectionReportInput = z.infer<typeof createInspectionReportSchema>;
+export type ApproveInspectionIssueInput = z.infer<typeof approveInspectionIssueSchema>;

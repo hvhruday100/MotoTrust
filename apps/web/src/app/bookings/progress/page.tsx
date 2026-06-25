@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { api, BookingStatus } from '../../../lib/api';
+import { api, BookingStatus, ServiceTask, ServiceTaskStatus } from '../../../lib/api';
 import { formatCurrency } from '@mototrust/ui';
 
 const lifecycleStatuses: BookingStatus[] = [
@@ -25,6 +25,8 @@ type ProgressPageProps = {
   };
 };
 
+const taskStatuses: ServiceTaskStatus[] = ['PENDING', 'IN_PROGRESS', 'COMPLETED'];
+
 function formatStatus(status: string) {
   return status
     .toLowerCase()
@@ -40,12 +42,25 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function formatMaybeDate(value?: string | null) {
+  if (!value) {
+    return 'Not yet';
+  }
+
+  return formatDate(value);
+}
+
+function groupTasks(tasks: ServiceTask[], status: ServiceTaskStatus) {
+  return tasks.filter((task) => task.status === status);
+}
+
 export default async function BookingProgressPage({ searchParams }: ProgressPageProps) {
   if (!searchParams.bookingId) {
     redirect('/');
   }
 
   const booking = await api.getBooking(searchParams.bookingId);
+  const serviceExecution = await api.getServiceExecution(searchParams.bookingId).catch(() => null);
   const currentIndex = lifecycleStatuses.indexOf(booking.status);
 
   return (
@@ -58,7 +73,10 @@ export default async function BookingProgressPage({ searchParams }: ProgressPage
             {booking.servicePackageName} · {formatCurrency(booking.quotedPrice)}
           </p>
         </div>
-        <Link href="/">Home</Link>
+        <div className="actions">
+          <Link href="/">Home</Link>
+          <Link href={`/bookings/approval?bookingId=${booking.id}`}>Approval</Link>
+        </div>
       </section>
 
       <section className="timeline-layout">
@@ -92,7 +110,61 @@ export default async function BookingProgressPage({ searchParams }: ProgressPage
           </ol>
         </div>
       </section>
+
+      {serviceExecution ? (
+        <section className="timeline-card" style={{ marginTop: 18 }}>
+          <h2>Service task progress</h2>
+          <p className="lede" style={{ marginTop: 8, fontSize: 16 }}>
+            Live mechanic execution board for this booking.
+          </p>
+
+          <div className="kanban-grid compact" style={{ marginTop: 24 }}>
+            {taskStatuses.map((status) => (
+              <div key={status} className="kanban-column">
+                <div className="kanban-column-header">
+                  <h2>{formatStatus(status)}</h2>
+                  <span>{groupTasks(serviceExecution.tasks, status).length}</span>
+                </div>
+                <div className="kanban-stack">
+                  {groupTasks(serviceExecution.tasks, status).map((task) => (
+                    <article key={task.id} className="kanban-card customer-card">
+                      <div className="card-heading">
+                        <div>
+                          <h3>{task.name}</h3>
+                          <p>{task.assignedMechanicName ?? 'Mechanic pending assignment'}</p>
+                        </div>
+                      </div>
+                      {task.notes ? <p className="task-notes">{task.notes}</p> : null}
+                      <dl className="task-meta">
+                        <div>
+                          <dt>Started</dt>
+                          <dd>{formatMaybeDate(task.startedAt)}</dd>
+                        </div>
+                        <div>
+                          <dt>Completed</dt>
+                          <dd>{formatMaybeDate(task.completedAt)}</dd>
+                        </div>
+                      </dl>
+                      {task.partsUsed.length ? (
+                        <ul className="parts-list">
+                          {task.partsUsed.map((part) => (
+                            <li key={part.id}>
+                              <strong>{part.name}</strong>
+                              <span>
+                                {part.quantity} x {formatCurrency(part.unitPrice)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }
-

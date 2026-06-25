@@ -26,6 +26,8 @@ async function bootstrap() {
     .addTag('motorcycles')
     .addTag('pricing')
     .addTag('bookings')
+    .addTag('inspections')
+    .addTag('service-execution')
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document);
