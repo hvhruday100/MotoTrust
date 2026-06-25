@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@mototrust/config": ["packages/config/src/index.ts"],
+      "@mototrust/contracts": ["packages/contracts/src/index.ts"],
+      "@mototrust/database": ["packages/database/src/index.ts"],
+      "@mototrust/logger": ["packages/logger/src/index.ts"],
+      "@mototrust/ui": ["packages/ui/src/index.ts"]
+    }
+  }
+}
+

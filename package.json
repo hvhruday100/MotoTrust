@@ -1,0 +1,25 @@
+{
+  "name": "mototrust",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "db:generate": "pnpm --filter @mototrust/database prisma:generate",
+    "db:migrate": "pnpm --filter @mototrust/database prisma:migrate",
+    "db:studio": "pnpm --filter @mototrust/database prisma:studio"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.8.0",
+    "@types/node": "^20.14.12",
+    "eslint": "^9.8.0",
+    "prettier": "^3.3.3",
+    "turbo": "^2.0.0",
+    "typescript-eslint": "^8.0.0",
+    "typescript": "^5.5.4"
+  }
+}
