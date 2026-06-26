@@ -108,6 +108,7 @@ model User {
   customerProfile   CustomerProfile?
   uploadedProofs    MediaProof[]           @relation("ProofUploadedBy")
   uploadedProofMedia ProofMediaAsset[]     @relation("ProofMediaAssetUploadedBy")
+  notifications     AppNotification[]
   notificationLogs  NotificationDelivery[]
 }
 
@@ -219,11 +220,33 @@ model Booking {
   timelineEvents    BookingTimelineEvent[]
   inspectionReport  InspectionReport?
   proofMedia        ProofMediaAsset[]
+  notifications     AppNotification[]
 
   @@index([customerId])
   @@index([motorcycleId])
   @@index([status])
   @@index([preferredPickupAt])
+}
+
+model AppNotification {
+  id         String    @id @default(cuid())
+  userId     String
+  bookingId  String?
+  title      String
+  message    String
+  category   String
+  actionUrl  String?
+  readAt     DateTime?
+  dedupeKey  String?   @unique
+  metadata   Json?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id])
+  booking    Booking?  @relation(fields: [bookingId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@index([bookingId, createdAt])
+  @@index([category])
 }
 
 model BookingTimelineEvent {

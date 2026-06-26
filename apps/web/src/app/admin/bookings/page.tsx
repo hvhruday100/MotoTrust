@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { api, BookingStatus } from '../../../lib/api';
 import { formatCurrency } from '@mototrust/ui';
 import { AppShell } from '../../../components/app-shell';
+import { NotificationBell } from '../../../components/notification-bell';
 import { requireSessionUser } from '../../../lib/session';
 
 const bookingStatuses: BookingStatus[] = [
@@ -53,7 +54,9 @@ export default async function AdminBookingsPage() {
     return new Date(booking.preferredPickupAt).getTime() < Date.now();
   });
   const approvalQueue = bookings.filter((booking) => booking.status === 'AWAITING_CUSTOMER_APPROVAL');
-  const activeService = bookings.filter((booking) => ['APPROVED_FOR_SERVICE', 'IN_SERVICE', 'QUALITY_CHECK'].includes(booking.status));
+  const activeService = bookings.filter((booking) =>
+    ['APPROVED_FOR_SERVICE', 'IN_SERVICE', 'QUALITY_CHECK'].includes(booking.status)
+  );
 
   return (
     <AppShell
@@ -62,6 +65,7 @@ export default async function AdminBookingsPage() {
       eyebrow="Operations"
       title="Booking lifecycle"
       description="Review bookings, move status forward, and keep the auditable service timeline clean."
+      headerExtras={<NotificationBell />}
       actions={<Link href="/">Home</Link>}
     >
       <section className="surface">

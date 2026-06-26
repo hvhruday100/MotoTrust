@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { api } from '../../../lib/api';
 import { AppShell } from '../../../components/app-shell';
+import { NotificationBell } from '../../../components/notification-bell';
 import { ProofMediaGallery } from '../../../components/proof-media-gallery';
 import { requireSessionUser } from '../../../lib/session';
 
@@ -41,6 +42,7 @@ export default async function BookingApprovalPage({ searchParams }: BookingAppro
       eyebrow="Customer approval"
       title="Inspection decisions"
       description={report.summary ?? 'Review each issue and approve or reject it individually.'}
+      headerExtras={<NotificationBell />}
       actions={<Link href={`/bookings/progress?bookingId=${report.bookingId}`}>Back to progress</Link>}
     >
       <section className="timeline-card" style={{ marginTop: 24 }}>

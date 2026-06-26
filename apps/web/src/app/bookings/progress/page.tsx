@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { api, BookingStatus, ServiceTask, ServiceTaskStatus } from '../../../lib/api';
 import { formatCurrency } from '@mototrust/ui';
 import { AppShell } from '../../../components/app-shell';
+import { NotificationBell } from '../../../components/notification-bell';
 import { ProofMediaGallery } from '../../../components/proof-media-gallery';
 import { requireSessionUser } from '../../../lib/session';
 
@@ -80,6 +81,7 @@ export default async function BookingProgressPage({ searchParams }: ProgressPage
       eyebrow="Live progress"
       title={formatStatus(booking.status)}
       description={`${booking.servicePackageName} · ${formatCurrency(booking.quotedPrice)}`}
+      headerExtras={<NotificationBell />}
       actions={
         <div className="actions">
           <Link href="/bookings">All bookings</Link>

@@ -10,6 +10,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { AuthenticatedAppUser } from '../auth/auth.types';
 import { toProofMediaResponse } from '../media-proofs/proof-media.mapper';
+import { NotificationsService } from '../notifications/notifications.service';
 import { DEFAULT_SERVICE_TASKS, TaskWorkflowStatus } from './service-execution.constants';
 import { AddServiceTaskPartDto } from './dto/add-service-task-part.dto';
 import { ServiceExecutionResponseDto } from './dto/service-execution-response.dto';
@@ -63,7 +64,8 @@ type ServiceTaskPayload = Prisma.ServiceTaskGetPayload<{
 export class ServiceExecutionService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
+    private readonly notificationsService: NotificationsService
   ) {}
 
   async initializeForBookingInService(tx: TransactionClient, bookingId: string): Promise<void> {
@@ -374,6 +376,19 @@ export class ServiceExecutionService {
 
       return saved;
     });
+
+    if (assignmentChanged && nextAssignedMechanicId) {
+      await Promise.allSettled([
+        this.notificationsService.notifyMechanicTaskAssignment({
+          bookingId: task.serviceOrder.bookingId,
+          taskId: task.id,
+          taskName: task.name,
+          assignedMechanicId: nextAssignedMechanicId,
+          assignedMechanicName: nextAssignedMechanicName,
+          previousAssignedMechanicId: task.assignedMechanicId
+        })
+      ]);
+    }
 
     return this.toTaskResponse(updated, user);
   }

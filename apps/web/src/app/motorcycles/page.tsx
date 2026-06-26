@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { api } from '../../lib/api';
 import { AppShell } from '../../components/app-shell';
+import { NotificationBell } from '../../components/notification-bell';
 import { requireSessionUser } from '../../lib/session';
 
 async function addMotorcycle(formData: FormData) {
@@ -33,6 +34,7 @@ export default async function MotorcyclesPage() {
       eyebrow="Step 2"
       title="Add your motorcycle"
       description="Save the bike once so future service bookings take only a few taps."
+      headerExtras={<NotificationBell />}
     >
       <section className="surface">
         <h2 className="page-section-title">Saved motorcycles</h2>
@@ -43,7 +45,11 @@ export default async function MotorcyclesPage() {
           </article>
           <article className="metric-card">
             <strong>{motorcycles.length ? 'Ready' : 'Next step'}</strong>
-            <span>{motorcycles.length ? 'You can book service any time.' : 'Add your first motorcycle to continue.'}</span>
+            <span>
+              {motorcycles.length
+                ? 'You can book service any time.'
+                : 'Add your first motorcycle to continue.'}
+            </span>
           </article>
         </div>
 

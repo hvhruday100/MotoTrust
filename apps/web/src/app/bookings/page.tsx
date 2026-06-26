@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { api } from '../../lib/api';
 import { formatCurrency } from '@mototrust/ui';
 import { AppShell } from '../../components/app-shell';
+import { NotificationBell } from '../../components/notification-bell';
 import { requireSessionUser } from '../../lib/session';
 
 async function createBooking(formData: FormData) {
@@ -55,6 +56,7 @@ export default async function BookingsPage() {
       eyebrow="Step 3"
       title="Create service booking"
       description="Pick the motorcycle, choose a fixed-price package, and confirm where we should collect and return the bike."
+      headerExtras={<NotificationBell />}
     >
       <section className="surface">
         <div className="step-strip">
@@ -63,7 +65,9 @@ export default async function BookingsPage() {
             <p>Your contact details are already on file.</p>
           </article>
           <article className="step-card">
-            <strong>{motorcycles.length} motorcycle{motorcycles.length > 1 ? 's' : ''} available</strong>
+            <strong>
+              {motorcycles.length} motorcycle{motorcycles.length > 1 ? 's' : ''} available
+            </strong>
             <p>Select the bike that needs service today.</p>
           </article>
           <article className="step-card active">
@@ -120,7 +124,10 @@ export default async function BookingsPage() {
               <article key={servicePackage.id} className="choice-card">
                 <strong>{servicePackage.name}</strong>
                 <p>{formatCurrency(servicePackage.fixedPrice)}</p>
-                <p>{servicePackage.description ?? 'Includes transparent pricing and a tracked service workflow.'}</p>
+                <p>
+                  {servicePackage.description ??
+                    'Includes transparent pricing and a tracked service workflow.'}
+                </p>
               </article>
             ))}
           </div>
@@ -149,7 +156,12 @@ export default async function BookingsPage() {
 
           <label>
             Customer notes
-            <textarea name="customerNotes" placeholder="Optional: gate code, call before pickup, or any rider note." maxLength={1000} rows={3} />
+            <textarea
+              name="customerNotes"
+              placeholder="Optional: gate code, call before pickup, or any rider note."
+              maxLength={1000}
+              rows={3}
+            />
           </label>
 
           <button type="submit">Confirm booking</button>

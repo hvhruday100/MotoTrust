@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { AppShell } from '../../../components/app-shell';
+import { NotificationBell } from '../../../components/notification-bell';
 
 type BookingSuccessPageProps = {
   searchParams: {
@@ -15,11 +16,14 @@ export default function BookingSuccessPage({ searchParams }: BookingSuccessPageP
       eyebrow="Booking confirmed"
       title="Service booking created."
       description={`Booking ID: ${searchParams.bookingId ?? 'created'}`}
+      headerExtras={<NotificationBell />}
     >
       <section className="form-shell">
         <div className="actions">
           <Link href="/">Back home</Link>
-          <Link href={searchParams.bookingId ? `/bookings/progress?bookingId=${searchParams.bookingId}` : '/'}>
+          <Link
+            href={searchParams.bookingId ? `/bookings/progress?bookingId=${searchParams.bookingId}` : '/'}
+          >
             Track progress
           </Link>
           <Link href="/bookings">New booking</Link>

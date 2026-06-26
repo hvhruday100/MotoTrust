@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { api, ServiceTask, ServiceTaskStatus } from '../../../lib/api';
 import { formatCurrency } from '@mototrust/ui';
 import { AppShell } from '../../../components/app-shell';
+import { NotificationBell } from '../../../components/notification-bell';
 import { ProofMediaGallery } from '../../../components/proof-media-gallery';
 import { ProofMediaUploader } from '../../../components/proof-media-uploader';
 import { requireSessionUser } from '../../../lib/session';
@@ -215,6 +216,7 @@ export default async function AdminServiceExecutionPage({ searchParams }: Servic
         eyebrow="Mechanic workflow"
         title="Service execution overview"
         description="Surface bookings that need mechanic assignment, active service tracking, or final quality confirmation."
+        headerExtras={<NotificationBell />}
         actions={<Link href="/admin/bookings">Back to bookings</Link>}
       >
         <section className="surface">
@@ -269,6 +271,7 @@ export default async function AdminServiceExecutionPage({ searchParams }: Servic
       eyebrow="Mechanic workflow"
       title="Service execution board"
       description={`Booking ${board.bookingId} · ${formatLabel(board.bookingStatus)} · ${formatLabel(board.serviceOrderStatus)}`}
+      headerExtras={<NotificationBell />}
       actions={
         <div className="actions">
           <Link href="/admin/bookings">Back to bookings</Link>

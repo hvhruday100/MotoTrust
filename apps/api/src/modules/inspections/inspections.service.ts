@@ -10,6 +10,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { AuthenticatedAppUser } from '../auth/auth.types';
 import { toProofMediaResponse } from '../media-proofs/proof-media.mapper';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ApproveInspectionIssueDto } from './dto/approve-inspection-issue.dto';
 import { CreateInspectionReportDto } from './dto/create-inspection-report.dto';
 import { InspectionIssueResponseDto } from './dto/inspection-issue-response.dto';
@@ -23,7 +24,8 @@ import { InspectionReportWithRelations } from './types/inspection-report-with-re
 export class InspectionsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
+    private readonly notificationsService: NotificationsService
   ) {}
 
   async createReport(
@@ -230,6 +232,20 @@ export class InspectionsService {
         }
       });
     });
+
+    if (dto.approvalStatus === IssueApprovalStatus.APPROVED) {
+      const approvalSummary = this.toApprovalSummary(report.issues);
+
+      await Promise.allSettled([
+        this.notificationsService.notifyMechanicsCustomerApprovedInspection({
+          bookingId: issue.report.bookingId,
+          issueTitle: issue.title
+        }),
+        ...(approvalSummary.canStartService
+          ? [this.notificationsService.notifyMechanicsWorkCanBegin(issue.report.bookingId)]
+          : [])
+      ]);
+    }
 
     return this.toReportResponse(report, user);
   }

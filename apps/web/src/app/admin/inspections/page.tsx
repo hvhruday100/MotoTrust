@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { api } from '../../../lib/api';
 import { AppShell } from '../../../components/app-shell';
+import { NotificationBell } from '../../../components/notification-bell';
 import { ProofMediaGallery } from '../../../components/proof-media-gallery';
 import { ProofMediaUploader } from '../../../components/proof-media-uploader';
 import { requireSessionUser } from '../../../lib/session';
@@ -64,6 +65,7 @@ export default async function AdminInspectionsPage({ searchParams }: AdminInspec
         eyebrow="Inspection"
         title="Inspection monitoring"
         description="See which bookings still need intake findings, which ones are awaiting customer action, and where to open the inspection report."
+        headerExtras={<NotificationBell />}
         actions={<Link href="/admin/bookings">Back to bookings</Link>}
       >
         <section className="surface">
@@ -115,6 +117,7 @@ export default async function AdminInspectionsPage({ searchParams }: AdminInspec
       eyebrow="Inspection"
       title="Mechanic inspection report"
       description="Capture the issues discovered during intake so the customer can make clear approval decisions."
+      headerExtras={<NotificationBell />}
       actions={<Link href="/admin/bookings">Back to bookings</Link>}
     >
       {existingReport ? (

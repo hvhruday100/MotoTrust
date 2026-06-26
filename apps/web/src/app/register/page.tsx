@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { api } from '../../lib/api';
 import { AppShell } from '../../components/app-shell';
+import { NotificationBell } from '../../components/notification-bell';
 import { requireSessionUser } from '../../lib/session';
 
 type RegisterPageProps = {
@@ -36,6 +37,7 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
       eyebrow="Step 1"
       title="Complete customer profile"
       description="Set up your MotoTrust account so bookings, approvals, and service history stay connected to one rider profile."
+      headerExtras={<NotificationBell />}
     >
       <section className="form-shell">
         <form action={registerCustomer} className="flow-form">

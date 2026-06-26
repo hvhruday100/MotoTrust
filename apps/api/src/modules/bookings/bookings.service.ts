@@ -5,6 +5,7 @@ import { PricingService } from '../pricing/pricing.service';
 import { AuthService } from '../auth/auth.service';
 import { AuthenticatedAppUser } from '../auth/auth.types';
 import { sortProofMediaChronologically, toProofMediaResponse } from '../media-proofs/proof-media.mapper';
+import { NotificationsService } from '../notifications/notifications.service';
 import { getAllowedNextStatuses, isAllowedTransition } from './booking-status.transitions';
 import { AddressInputDto } from './dto/address-input.dto';
 import { BookingDetailResponseDto } from './dto/booking-detail-response.dto';
@@ -21,7 +22,8 @@ export class BookingsService {
     private readonly prisma: PrismaService,
     private readonly pricingService: PricingService,
     private readonly serviceExecutionService: ServiceExecutionService,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
+    private readonly notificationsService: NotificationsService
   ) {}
 
   async create(dto: CreateServiceBookingDto, user: AuthenticatedAppUser): Promise<ServiceBookingResponseDto> {
@@ -91,6 +93,19 @@ export class BookingsService {
         }
       });
     });
+
+    await Promise.allSettled([
+      this.notificationsService.notifyCustomerBookingCreated({
+        bookingId: booking.id,
+        customerUserId: customer.userId,
+        servicePackageName: booking.servicePackage.name
+      }),
+      this.notificationsService.notifyAdminsNewBooking({
+        bookingId: booking.id,
+        servicePackageName: booking.servicePackage.name,
+        customerName: customer.fullName
+      })
+    ]);
 
     return this.toResponse(booking as BookingWithRelations);
   }
@@ -254,6 +269,23 @@ export class BookingsService {
         }
       });
     });
+
+    const customer = await this.prisma.customerProfile.findUnique({
+      where: { id: updated.customerId },
+      select: {
+        userId: true
+      }
+    });
+
+    if (customer?.userId) {
+      await Promise.allSettled([
+        this.notificationsService.notifyCustomerBookingStatus({
+          bookingId: updated.id,
+          customerUserId: customer.userId,
+          nextStatus: updated.status
+        })
+      ]);
+    }
 
     return this.toDetailResponse(updated, user);
   }

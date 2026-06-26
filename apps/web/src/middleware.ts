@@ -22,6 +22,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/admin') ||
     pathname.startsWith('/mechanic') ||
     pathname.startsWith('/bookings') ||
+    pathname.startsWith('/notifications') ||
     pathname.startsWith('/motorcycles') ||
     pathname === '/register';
 
@@ -45,5 +46,13 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/mechanic/:path*', '/bookings/:path*', '/motorcycles', '/register', '/login']
+  matcher: [
+    '/admin/:path*',
+    '/mechanic/:path*',
+    '/bookings/:path*',
+    '/notifications',
+    '/motorcycles',
+    '/register',
+    '/login'
+  ]
 };

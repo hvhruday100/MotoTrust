@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { formatCurrency } from '@mototrust/ui';
 import { api, ServiceTask, ServiceTaskStatus } from '../../../lib/api';
 import { AppShell } from '../../../components/app-shell';
+import { NotificationBell } from '../../../components/notification-bell';
 import { ProofMediaGallery } from '../../../components/proof-media-gallery';
 import { ProofMediaUploader } from '../../../components/proof-media-uploader';
 import { requireSessionUser } from '../../../lib/session';
@@ -73,6 +74,7 @@ export default async function MechanicTasksPage({ searchParams }: MechanicTasksP
       eyebrow="Mechanic workspace"
       title="Assigned service tasks"
       description="Track assigned work, update task progress, and keep notes current as the booking moves through service."
+      headerExtras={<NotificationBell />}
       actions={<Link href="/">Home</Link>}
     >
       <section className="surface">

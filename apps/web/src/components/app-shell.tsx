@@ -9,6 +9,7 @@ type AppShellProps = {
   title: string;
   description: string;
   actions?: ReactNode;
+  headerExtras?: ReactNode;
   children: ReactNode;
 };
 
@@ -57,7 +58,16 @@ function getWorkspaceLabel(role?: UserRole) {
   }
 }
 
-export function AppShell({ role, currentPath, eyebrow, title, description, actions, children }: AppShellProps) {
+export function AppShell({
+  role,
+  currentPath,
+  eyebrow,
+  title,
+  description,
+  actions,
+  headerExtras,
+  children
+}: AppShellProps) {
   const navigation = role ? roleNav[role] : publicNav;
   const showSidebar = role === 'ADMIN' || role === 'MECHANIC';
 
@@ -65,7 +75,7 @@ export function AppShell({ role, currentPath, eyebrow, title, description, actio
     <div className={`workspace-shell${showSidebar ? ' with-sidebar' : ''}`}>
       <header className="app-header">
         <div className="brand-cluster">
-          <Link href={role ? navigation[0]?.href ?? '/' : '/'} className="brand-link">
+          <Link href={role ? (navigation[0]?.href ?? '/') : '/'} className="brand-link">
             MotoTrust
           </Link>
           <p>{getWorkspaceLabel(role)}</p>
@@ -73,10 +83,15 @@ export function AppShell({ role, currentPath, eyebrow, title, description, actio
 
         <nav className="header-nav" aria-label="Primary">
           {navigation.map((item) => (
-            <Link key={item.href} href={item.href} className={isActivePath(currentPath, item.href) ? 'active' : ''}>
+            <Link
+              key={item.href}
+              href={item.href}
+              className={isActivePath(currentPath, item.href) ? 'active' : ''}
+            >
               {item.label}
             </Link>
           ))}
+          {headerExtras}
           {role ? <Link href="/auth/logout">Log out</Link> : null}
         </nav>
       </header>
@@ -88,7 +103,11 @@ export function AppShell({ role, currentPath, eyebrow, title, description, actio
               <p className="sidebar-label">{getWorkspaceLabel(role)}</p>
               <nav className="sidebar-nav" aria-label="Workspace">
                 {navigation.map((item) => (
-                  <Link key={item.href} href={item.href} className={isActivePath(currentPath, item.href) ? 'active' : ''}>
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={isActivePath(currentPath, item.href) ? 'active' : ''}
+                  >
                     {item.label}
                   </Link>
                 ))}

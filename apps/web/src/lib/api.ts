@@ -28,6 +28,18 @@ export type UserRole = 'CUSTOMER' | 'MECHANIC' | 'ADMIN';
 export type MediaProofType = 'PHOTO' | 'VIDEO' | 'CCTV_CLIP' | 'DOCUMENT';
 export type MediaVisibility = 'INTERNAL' | 'CUSTOMER_VISIBLE';
 
+export type AppNotification = {
+  id: string;
+  title: string;
+  message: string;
+  category: string;
+  bookingId?: string | null;
+  actionUrl?: string | null;
+  readAt?: string | null;
+  isRead: boolean;
+  createdAt: string;
+};
+
 export type AppUser = {
   id: string;
   firebaseUid: string;
@@ -328,6 +340,26 @@ export const api = {
     return request<BookingDetail>(`/bookings/${bookingId}/delivery-proof`, {
       method: 'POST',
       body: JSON.stringify(input)
+    });
+  },
+
+  listNotifications() {
+    return request<AppNotification[]>('/notifications');
+  },
+
+  getUnreadNotificationCount() {
+    return request<{ unreadCount: number }>('/notifications/unread-count');
+  },
+
+  markNotificationAsRead(notificationId: string) {
+    return request<AppNotification>(`/notifications/${notificationId}/read`, {
+      method: 'PATCH'
+    });
+  },
+
+  markAllNotificationsAsRead() {
+    return request<{ unreadCount: number }>('/notifications/read-all', {
+      method: 'PATCH'
     });
   },
 
