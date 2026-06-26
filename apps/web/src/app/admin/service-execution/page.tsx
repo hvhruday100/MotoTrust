@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { api, ServiceTask, ServiceTaskStatus } from '../../../lib/api';
 import { formatCurrency } from '@mototrust/ui';
 import { AppShell } from '../../../components/app-shell';
+import { ProofMediaGallery } from '../../../components/proof-media-gallery';
+import { ProofMediaUploader } from '../../../components/proof-media-uploader';
 import { requireSessionUser } from '../../../lib/session';
 
 const boardStatuses: ServiceTaskStatus[] = ['PENDING', 'IN_PROGRESS', 'COMPLETED'];
@@ -100,11 +102,19 @@ function renderTaskCard(task: ServiceTask, bookingId: string) {
         <input type="hidden" name="taskId" value={task.id} />
         <label>
           Mechanic id
-          <input name="assignedMechanicId" defaultValue={task.assignedMechanicId ?? ''} placeholder="mech-001" />
+          <input
+            name="assignedMechanicId"
+            defaultValue={task.assignedMechanicId ?? ''}
+            placeholder="mech-001"
+          />
         </label>
         <label>
           Mechanic name
-          <input name="assignedMechanicName" defaultValue={task.assignedMechanicName ?? ''} placeholder="Ravi Kumar" />
+          <input
+            name="assignedMechanicName"
+            defaultValue={task.assignedMechanicName ?? ''}
+            placeholder="Ravi Kumar"
+          />
         </label>
         <label>
           Task status
@@ -131,7 +141,8 @@ function renderTaskCard(task: ServiceTask, bookingId: string) {
               <li key={part.id}>
                 <strong>{part.name}</strong>
                 <span>
-                  {part.sku} · {part.quantity} x {formatCurrency(part.unitPrice)} = {formatCurrency(part.totalPrice)}
+                  {part.sku} · {part.quantity} x {formatCurrency(part.unitPrice)} ={' '}
+                  {formatCurrency(part.totalPrice)}
                 </span>
               </li>
             ))}
@@ -170,6 +181,21 @@ function renderTaskCard(task: ServiceTask, bookingId: string) {
           <button type="submit">Add part</button>
         </form>
       </div>
+
+      <div className="parts-section">
+        <h4>Task proof media</h4>
+        <ProofMediaGallery items={task.proofMedia} emptyMessage="No task photos uploaded yet." />
+        <div className="section-stack" style={{ marginTop: 12 }}>
+          <ProofMediaUploader
+            endpoint={`/media/service-tasks/${task.id}`}
+            storageFolder={`service-tasks/${task.id}/before`}
+            buttonText="Upload before photos"
+            labelOptions={['Before Service', 'In Progress', 'After Service']}
+            defaultLabel="Before Service"
+            visibility="CUSTOMER_VISIBLE"
+          />
+        </div>
+      </div>
     </article>
   );
 }
@@ -198,7 +224,9 @@ export default async function AdminServiceExecutionPage({ searchParams }: Servic
               <span>Bookings in execution flow</span>
             </article>
             <article className="metric-card">
-              <strong>{executionQueue.filter((booking) => booking.status === 'APPROVED_FOR_SERVICE').length}</strong>
+              <strong>
+                {executionQueue.filter((booking) => booking.status === 'APPROVED_FOR_SERVICE').length}
+              </strong>
               <span>Likely needing mechanic assignment</span>
             </article>
             <article className="metric-card">
@@ -230,6 +258,7 @@ export default async function AdminServiceExecutionPage({ searchParams }: Servic
   }
 
   const board = await api.getServiceExecution(searchParams.bookingId);
+  const booking = await api.getBooking(searchParams.bookingId);
   const assignedTasks = searchParams.mechanicId ? await api.listMechanicTasks(searchParams.mechanicId) : [];
   const unassignedTasks = board.tasks.filter((task) => !task.assignedMechanicId);
 
@@ -293,6 +322,26 @@ export default async function AdminServiceExecutionPage({ searchParams }: Servic
           </ul>
         </section>
       ) : null}
+
+      <section className="timeline-card" style={{ marginTop: 18 }}>
+        <h2>Delivery proof</h2>
+        <p className="muted">Upload the final handover image once the motorcycle is ready to return.</p>
+        <div className="section-stack" style={{ marginTop: 12 }}>
+          <ProofMediaGallery
+            items={booking.mediaTimeline.filter((item) => !item.serviceTaskId && !item.inspectionIssueId)}
+            emptyMessage="No booking-level delivery proof uploaded yet."
+          />
+        </div>
+        <div className="section-stack" style={{ marginTop: 12 }}>
+          <ProofMediaUploader
+            endpoint={`/media/bookings/${board.bookingId}/delivery-proof`}
+            storageFolder={`bookings/${board.bookingId}/delivery-proof`}
+            buttonText="Upload delivery proof"
+            defaultLabel="Delivery Proof"
+            visibility="CUSTOMER_VISIBLE"
+          />
+        </div>
+      </section>
 
       <section className="kanban-grid">
         {boardStatuses.map((status) => (

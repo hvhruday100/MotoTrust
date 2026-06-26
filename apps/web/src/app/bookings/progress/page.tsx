@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { api, BookingStatus, ServiceTask, ServiceTaskStatus } from '../../../lib/api';
 import { formatCurrency } from '@mototrust/ui';
 import { AppShell } from '../../../components/app-shell';
+import { ProofMediaGallery } from '../../../components/proof-media-gallery';
 import { requireSessionUser } from '../../../lib/session';
 
 const lifecycleStatuses: BookingStatus[] = [
@@ -57,7 +58,7 @@ function groupTasks(tasks: ServiceTask[], status: ServiceTaskStatus) {
 }
 
 export default async function BookingProgressPage({ searchParams }: ProgressPageProps) {
-  await requireSessionUser();
+  const user = await requireSessionUser();
   if (!searchParams.bookingId) {
     redirect('/');
   }
@@ -67,11 +68,14 @@ export default async function BookingProgressPage({ searchParams }: ProgressPage
   const currentIndex = lifecycleStatuses.indexOf(booking.status);
   const progressPercent =
     currentIndex >= 0 ? Math.round(((currentIndex + 1) / lifecycleStatuses.length) * 100) : 0;
-  const nextStatus = currentIndex >= 0 && currentIndex < lifecycleStatuses.length - 1 ? lifecycleStatuses[currentIndex + 1] : null;
+  const nextStatus =
+    currentIndex >= 0 && currentIndex < lifecycleStatuses.length - 1
+      ? lifecycleStatuses[currentIndex + 1]
+      : null;
 
   return (
     <AppShell
-      role="CUSTOMER"
+      role={user.role}
       currentPath="/bookings"
       eyebrow="Live progress"
       title={formatStatus(booking.status)}
@@ -129,6 +133,17 @@ export default async function BookingProgressPage({ searchParams }: ProgressPage
               </li>
             ))}
           </ol>
+        </div>
+      </section>
+
+      <section className="timeline-card" style={{ marginTop: 18 }}>
+        <h2>Service proof timeline</h2>
+        <p className="muted">Photos are shown in the same order the work was captured by the service team.</p>
+        <div className="section-stack" style={{ marginTop: 16 }}>
+          <ProofMediaGallery
+            items={booking.mediaTimeline}
+            emptyMessage="Proof media will appear here as the service progresses."
+          />
         </div>
       </section>
 

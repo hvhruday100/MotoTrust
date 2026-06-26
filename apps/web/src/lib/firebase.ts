@@ -2,8 +2,10 @@
 
 import { FirebaseApp, getApp, getApps, initializeApp } from 'firebase/app';
 import { Auth, browserLocalPersistence, getAuth, setPersistence } from 'firebase/auth';
+import { FirebaseStorage, getStorage } from 'firebase/storage';
 
 let authPromise: Promise<Auth> | null = null;
+let storageInstance: FirebaseStorage | null = null;
 
 function getFirebaseApp(): FirebaseApp {
   const config = {
@@ -26,4 +28,12 @@ export async function getFirebaseAuth(): Promise<Auth> {
   }
 
   return authPromise;
+}
+
+export function getFirebaseStorage(): FirebaseStorage {
+  if (!storageInstance) {
+    storageInstance = getStorage(getFirebaseApp());
+  }
+
+  return storageInstance;
 }

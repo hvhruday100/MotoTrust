@@ -1,12 +1,22 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { BookingStatus, IssueApprovalStatus, Prisma } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException
+} from '@nestjs/common';
+import { BookingStatus, IssueApprovalStatus, MediaVisibility, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { AuthenticatedAppUser } from '../auth/auth.types';
+import { toProofMediaResponse } from '../media-proofs/proof-media.mapper';
 import { ApproveInspectionIssueDto } from './dto/approve-inspection-issue.dto';
 import { CreateInspectionReportDto } from './dto/create-inspection-report.dto';
 import { InspectionIssueResponseDto } from './dto/inspection-issue-response.dto';
-import { InspectionApprovalSummaryDto, InspectionReportResponseDto } from './dto/inspection-report-response.dto';
+import {
+  InspectionApprovalSummaryDto,
+  InspectionReportResponseDto
+} from './dto/inspection-report-response.dto';
 import { InspectionReportWithRelations } from './types/inspection-report-with-relations.type';
 
 @Injectable()
@@ -31,7 +41,9 @@ export class InspectionsService {
     }
 
     if (booking.status === BookingStatus.CANCELLED || booking.status === BookingStatus.DELIVERED) {
-      throw new BadRequestException('Inspection reports cannot be created for cancelled or delivered bookings.');
+      throw new BadRequestException(
+        'Inspection reports cannot be created for cancelled or delivered bookings.'
+      );
     }
 
     if (booking.inspectionReport) {
@@ -64,7 +76,17 @@ export class InspectionsService {
           }
         },
         include: {
-          issues: { orderBy: { createdAt: 'asc' } },
+          issues: {
+            include: {
+              proofMedia: {
+                include: {
+                  uploadedBy: true
+                },
+                orderBy: { createdAt: 'asc' }
+              }
+            },
+            orderBy: { createdAt: 'asc' }
+          },
           booking: true
         }
       });
@@ -88,14 +110,27 @@ export class InspectionsService {
       return created;
     });
 
-    return this.toReportResponse(report);
+    return this.toReportResponse(report, user);
   }
 
-  async getReportByBookingId(bookingId: string, user: AuthenticatedAppUser): Promise<InspectionReportResponseDto> {
+  async getReportByBookingId(
+    bookingId: string,
+    user: AuthenticatedAppUser
+  ): Promise<InspectionReportResponseDto> {
     const report = await this.prisma.inspectionReport.findUnique({
       where: { bookingId },
       include: {
-        issues: { orderBy: { createdAt: 'asc' } },
+        issues: {
+          include: {
+            proofMedia: {
+              include: {
+                uploadedBy: true
+              },
+              orderBy: { createdAt: 'asc' }
+            }
+          },
+          orderBy: { createdAt: 'asc' }
+        },
         booking: true
       }
     });
@@ -106,7 +141,7 @@ export class InspectionsService {
 
     this.assertBookingAccess(report.booking.customerId, user);
 
-    return this.toReportResponse(report);
+    return this.toReportResponse(report, user);
   }
 
   async approveIssue(
@@ -120,7 +155,16 @@ export class InspectionsService {
         report: {
           include: {
             booking: true,
-            issues: true
+            issues: {
+              include: {
+                proofMedia: {
+                  include: {
+                    uploadedBy: true
+                  },
+                  orderBy: { createdAt: 'asc' }
+                }
+              }
+            }
           }
         }
       }
@@ -171,13 +215,23 @@ export class InspectionsService {
       return tx.inspectionReport.findUniqueOrThrow({
         where: { id: issue.reportId },
         include: {
-          issues: { orderBy: { createdAt: 'asc' } },
+          issues: {
+            include: {
+              proofMedia: {
+                include: {
+                  uploadedBy: true
+                },
+                orderBy: { createdAt: 'asc' }
+              }
+            },
+            orderBy: { createdAt: 'asc' }
+          },
           booking: true
         }
       });
     });
 
-    return this.toReportResponse(report);
+    return this.toReportResponse(report, user);
   }
 
   async getApprovalStateForBooking(bookingId: string): Promise<InspectionApprovalSummaryDto | null> {
@@ -193,7 +247,10 @@ export class InspectionsService {
     return this.toApprovalSummary(report.issues);
   }
 
-  private toReportResponse(report: InspectionReportWithRelations): InspectionReportResponseDto {
+  private toReportResponse(
+    report: InspectionReportWithRelations,
+    user: AuthenticatedAppUser
+  ): InspectionReportResponseDto {
     return {
       id: report.id,
       bookingId: report.bookingId,
@@ -203,7 +260,7 @@ export class InspectionsService {
       createdByName: report.createdByName,
       createdAt: report.createdAt,
       updatedAt: report.updatedAt,
-      issues: report.issues.map((issue) => this.toIssueResponse(issue)),
+      issues: report.issues.map((issue) => this.toIssueResponse(issue, user)),
       approvalSummary: this.toApprovalSummary(report.issues)
     };
   }
@@ -214,20 +271,51 @@ export class InspectionsService {
     }
   }
 
-  private toIssueResponse(issue: {
-    id: string;
-    title: string;
-    description: string | null;
-    severity: any;
-    estimatedPartsCost: Prisma.Decimal;
-    estimatedLaborCost: Prisma.Decimal;
-    imageUrls: Prisma.JsonValue | null;
-    approvalStatus: any;
-    customerDecisionAt: Date | null;
-    customerDecisionById: string | null;
-    customerDecisionByName: string | null;
-    customerDecisionNote: string | null;
-  }): InspectionIssueResponseDto {
+  private toIssueResponse(
+    issue: {
+      id: string;
+      title: string;
+      description: string | null;
+      severity: any;
+      estimatedPartsCost: Prisma.Decimal;
+      estimatedLaborCost: Prisma.Decimal;
+      imageUrls: Prisma.JsonValue | null;
+      proofMedia: Array<{
+        id: string;
+        bookingId: string;
+        inspectionIssueId: string | null;
+        serviceTaskId: string | null;
+        uploadedById: string | null;
+        type: any;
+        visibility: any;
+        storageProvider: string;
+        storageKey: string;
+        storageUrl: string;
+        mimeType: string | null;
+        fileName: string | null;
+        label: string | null;
+        caption: string | null;
+        capturedAt: Date | null;
+        createdAt: Date;
+        uploadedBy?: {
+          id: string;
+          displayName: string | null;
+          email: string | null;
+          firebaseUid: string;
+        } | null;
+      }>;
+      approvalStatus: any;
+      customerDecisionAt: Date | null;
+      customerDecisionById: string | null;
+      customerDecisionByName: string | null;
+      customerDecisionNote: string | null;
+    },
+    user: AuthenticatedAppUser
+  ): InspectionIssueResponseDto {
+    const proofMedia = issue.proofMedia.filter((asset) =>
+      user.role === 'CUSTOMER' ? asset.visibility === MediaVisibility.CUSTOMER_VISIBLE : true
+    );
+
     return {
       id: issue.id,
       title: issue.title,
@@ -236,6 +324,7 @@ export class InspectionsService {
       estimatedPartsCost: issue.estimatedPartsCost.toNumber(),
       estimatedLaborCost: issue.estimatedLaborCost.toNumber(),
       imageUrls: Array.isArray(issue.imageUrls) ? (issue.imageUrls as string[]) : [],
+      proofMedia: proofMedia.map((asset) => toProofMediaResponse(asset)),
       approvalStatus: issue.approvalStatus,
       customerDecisionAt: issue.customerDecisionAt,
       customerDecisionById: issue.customerDecisionById,
@@ -251,7 +340,9 @@ export class InspectionsService {
     }>
   ): InspectionApprovalSummaryDto {
     const totalIssues = issues.length;
-    const pendingIssues = issues.filter((issue) => issue.approvalStatus === IssueApprovalStatus.PENDING).length;
+    const pendingIssues = issues.filter(
+      (issue) => issue.approvalStatus === IssueApprovalStatus.PENDING
+    ).length;
     const criticalIssues = issues.filter((issue) => issue.severity === 'CRITICAL').length;
     const criticalApproved = issues.filter(
       (issue) => issue.severity === 'CRITICAL' && issue.approvalStatus === IssueApprovalStatus.APPROVED

@@ -107,6 +107,7 @@ model User {
   updatedAt         DateTime               @updatedAt
   customerProfile   CustomerProfile?
   uploadedProofs    MediaProof[]           @relation("ProofUploadedBy")
+  uploadedProofMedia ProofMediaAsset[]     @relation("ProofMediaAssetUploadedBy")
   notificationLogs  NotificationDelivery[]
 }
 
@@ -217,6 +218,7 @@ model Booking {
   serviceOrder      ServiceOrder?
   timelineEvents    BookingTimelineEvent[]
   inspectionReport  InspectionReport?
+  proofMedia        ProofMediaAsset[]
 
   @@index([customerId])
   @@index([motorcycleId])
@@ -274,6 +276,7 @@ model InspectionIssue {
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
   report                InspectionReport        @relation(fields: [reportId], references: [id])
+  proofMedia            ProofMediaAsset[]
 
   @@index([reportId])
   @@index([severity])
@@ -316,6 +319,7 @@ model ServiceTask {
   serviceOrder   ServiceOrder      @relation(fields: [serviceOrderId], references: [id])
   partsUsed      ServiceOrderPart[]
   proofs         MediaProof[]
+  proofMedia     ProofMediaAsset[]
 
   @@index([serviceOrderId, status])
   @@index([assignedMechanicId, status])
@@ -369,6 +373,34 @@ model MediaProof {
   serviceOrder    ServiceOrder    @relation(fields: [serviceOrderId], references: [id])
   serviceTask     ServiceTask?    @relation(fields: [serviceTaskId], references: [id])
   uploadedBy      User?           @relation("ProofUploadedBy", fields: [uploadedById], references: [id])
+}
+
+model ProofMediaAsset {
+  id                String          @id @default(cuid())
+  bookingId         String
+  inspectionIssueId String?
+  serviceTaskId     String?
+  uploadedById      String?
+  type              MediaProofType
+  visibility        MediaVisibility @default(CUSTOMER_VISIBLE)
+  storageProvider   String
+  storageKey        String
+  storageUrl        String
+  mimeType          String?
+  fileName          String?
+  label             String?
+  caption           String?
+  capturedAt        DateTime?
+  createdAt         DateTime        @default(now())
+  booking           Booking         @relation(fields: [bookingId], references: [id])
+  inspectionIssue   InspectionIssue? @relation(fields: [inspectionIssueId], references: [id])
+  serviceTask       ServiceTask?    @relation(fields: [serviceTaskId], references: [id])
+  uploadedBy        User?           @relation("ProofMediaAssetUploadedBy", fields: [uploadedById], references: [id])
+
+  @@index([bookingId, createdAt])
+  @@index([inspectionIssueId])
+  @@index([serviceTaskId])
+  @@index([visibility])
 }
 
 model ServiceHistoryEvent {

@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { api } from '../../../lib/api';
 import { AppShell } from '../../../components/app-shell';
+import { ProofMediaGallery } from '../../../components/proof-media-gallery';
+import { ProofMediaUploader } from '../../../components/proof-media-uploader';
 import { requireSessionUser } from '../../../lib/session';
 
 type AdminInspectionsPageProps = {
@@ -50,7 +52,9 @@ export default async function AdminInspectionsPage({ searchParams }: AdminInspec
   if (!searchParams.bookingId) {
     const bookings = await api.listAdminBookings();
     const inspectionQueue = bookings.filter((booking) =>
-      ['RECEIVED_AT_SERVICE_CENTER', 'INSPECTION_COMPLETED', 'AWAITING_CUSTOMER_APPROVAL'].includes(booking.status)
+      ['RECEIVED_AT_SERVICE_CENTER', 'INSPECTION_COMPLETED', 'AWAITING_CUSTOMER_APPROVAL'].includes(
+        booking.status
+      )
     );
 
     return (
@@ -69,7 +73,9 @@ export default async function AdminInspectionsPage({ searchParams }: AdminInspec
               <span>Bookings in inspection flow</span>
             </article>
             <article className="metric-card">
-              <strong>{inspectionQueue.filter((booking) => booking.status === 'AWAITING_CUSTOMER_APPROVAL').length}</strong>
+              <strong>
+                {inspectionQueue.filter((booking) => booking.status === 'AWAITING_CUSTOMER_APPROVAL').length}
+              </strong>
               <span>Waiting for customer decision</span>
             </article>
           </div>
@@ -117,15 +123,32 @@ export default async function AdminInspectionsPage({ searchParams }: AdminInspec
           <p>{existingReport.summary ?? 'No summary provided.'}</p>
           <ul className="issue-list">
             {existingReport.issues.map((issue) => (
-              <li key={issue.id}>
+              <li key={issue.id} className="timeline-card" style={{ marginTop: 16 }}>
                 <strong>{issue.title}</strong>
                 <p>
                   {issue.severity} · Parts {issue.estimatedPartsCost} · Labor {issue.estimatedLaborCost}
                 </p>
+                {issue.description ? <p>{issue.description}</p> : null}
+
+                <div className="section-stack" style={{ marginTop: 14 }}>
+                  <ProofMediaGallery
+                    items={issue.proofMedia}
+                    emptyMessage="No inspection photos uploaded yet."
+                  />
+                  <ProofMediaUploader
+                    endpoint={`/media/inspection-issues/${issue.id}`}
+                    storageFolder={`inspection-issues/${issue.id}`}
+                    buttonText="Upload inspection photos"
+                    defaultLabel="Inspection"
+                    visibility="CUSTOMER_VISIBLE"
+                  />
+                </div>
               </li>
             ))}
           </ul>
-          <Link href={`/bookings/approval?bookingId=${existingReport.bookingId}`}>View customer approval</Link>
+          <Link href={`/bookings/approval?bookingId=${existingReport.bookingId}`}>
+            View customer approval
+          </Link>
         </section>
       ) : (
         <form action={createInspectionReport} className="flow-form" style={{ marginTop: 32 }}>

@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ProofMediaResponseDto } from '../../media-proofs/dto/proof-media-response.dto';
 import { ServicePartUsageResponseDto } from './service-part-usage-response.dto';
 
 export class ServiceTaskResponseDto {
@@ -46,4 +47,7 @@ export class ServiceTaskResponseDto {
 
   @ApiProperty({ type: [ServicePartUsageResponseDto] })
   partsUsed!: ServicePartUsageResponseDto[];
+
+  @ApiProperty({ type: [ProofMediaResponseDto] })
+  proofMedia!: ProofMediaResponseDto[];
 }

@@ -1,9 +1,10 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { BookingActorType, BookingStatus } from '@prisma/client';
+import { BookingActorType, BookingStatus, MediaVisibility } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { PricingService } from '../pricing/pricing.service';
 import { AuthService } from '../auth/auth.service';
 import { AuthenticatedAppUser } from '../auth/auth.types';
+import { sortProofMediaChronologically, toProofMediaResponse } from '../media-proofs/proof-media.mapper';
 import { getAllowedNextStatuses, isAllowedTransition } from './booking-status.transitions';
 import { AddressInputDto } from './dto/address-input.dto';
 import { BookingDetailResponseDto } from './dto/booking-detail-response.dto';
@@ -80,6 +81,12 @@ export class BookingsService {
           servicePackage: true,
           timelineEvents: {
             orderBy: { createdAt: 'asc' }
+          },
+          proofMedia: {
+            include: {
+              uploadedBy: true
+            },
+            orderBy: { createdAt: 'asc' }
           }
         }
       });
@@ -104,6 +111,12 @@ export class BookingsService {
         servicePackage: true,
         timelineEvents: {
           orderBy: { createdAt: 'asc' }
+        },
+        proofMedia: {
+          include: {
+            uploadedBy: true
+          },
+          orderBy: { createdAt: 'asc' }
         }
       },
       orderBy: { createdAt: 'desc' }
@@ -117,6 +130,12 @@ export class BookingsService {
       include: {
         servicePackage: true,
         timelineEvents: {
+          orderBy: { createdAt: 'asc' }
+        },
+        proofMedia: {
+          include: {
+            uploadedBy: true
+          },
           orderBy: { createdAt: 'asc' }
         }
       },
@@ -134,6 +153,12 @@ export class BookingsService {
         servicePackage: true,
         timelineEvents: {
           orderBy: { createdAt: 'asc' }
+        },
+        proofMedia: {
+          include: {
+            uploadedBy: true
+          },
+          orderBy: { createdAt: 'asc' }
         }
       }
     });
@@ -144,7 +169,7 @@ export class BookingsService {
 
     this.assertBookingAccess(booking.customerId, user);
 
-    return this.toDetailResponse(booking);
+    return this.toDetailResponse(booking, user);
   }
 
   async updateStatus(
@@ -157,6 +182,12 @@ export class BookingsService {
       include: {
         servicePackage: true,
         timelineEvents: {
+          orderBy: { createdAt: 'asc' }
+        },
+        proofMedia: {
+          include: {
+            uploadedBy: true
+          },
           orderBy: { createdAt: 'asc' }
         }
       }
@@ -213,12 +244,18 @@ export class BookingsService {
           servicePackage: true,
           timelineEvents: {
             orderBy: { createdAt: 'asc' }
+          },
+          proofMedia: {
+            include: {
+              uploadedBy: true
+            },
+            orderBy: { createdAt: 'asc' }
           }
         }
       });
     });
 
-    return this.toDetailResponse(updated);
+    return this.toDetailResponse(updated, user);
   }
 
   private toAddressCreateInput(customerId: string, address: AddressInputDto) {
@@ -255,19 +292,25 @@ export class BookingsService {
     }
 
     if (!report.issues.length) {
-      throw new BadRequestException('Inspection report must contain at least one issue before moving to IN_SERVICE.');
+      throw new BadRequestException(
+        'Inspection report must contain at least one issue before moving to IN_SERVICE.'
+      );
     }
 
     const pendingIssues = report.issues.filter((issue) => issue.approvalStatus === 'PENDING');
     if (pendingIssues.length > 0) {
-      throw new BadRequestException('All inspection issues must be approved or rejected before moving to IN_SERVICE.');
+      throw new BadRequestException(
+        'All inspection issues must be approved or rejected before moving to IN_SERVICE.'
+      );
     }
 
     const criticalNotApproved = report.issues.filter(
       (issue) => issue.severity === 'CRITICAL' && issue.approvalStatus !== 'APPROVED'
     );
     if (criticalNotApproved.length > 0) {
-      throw new BadRequestException('All CRITICAL inspection items must be approved before moving to IN_SERVICE.');
+      throw new BadRequestException(
+        'All CRITICAL inspection items must be approved before moving to IN_SERVICE.'
+      );
     }
   }
 
@@ -292,10 +335,20 @@ export class BookingsService {
     };
   }
 
-  private toDetailResponse(booking: BookingWithRelations): BookingDetailResponseDto {
+  private toDetailResponse(
+    booking: BookingWithRelations,
+    user: AuthenticatedAppUser
+  ): BookingDetailResponseDto {
+    const mediaTimeline = sortProofMediaChronologically(
+      booking.proofMedia.filter((asset) =>
+        user.role === 'CUSTOMER' ? asset.visibility === MediaVisibility.CUSTOMER_VISIBLE : true
+      )
+    );
+
     return {
       ...this.toResponse(booking),
-      timeline: booking.timelineEvents.map((event) => this.toTimelineResponse(event))
+      timeline: booking.timelineEvents.map((event) => this.toTimelineResponse(event)),
+      mediaTimeline: mediaTimeline.map((asset) => toProofMediaResponse(asset))
     };
   }
 

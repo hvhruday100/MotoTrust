@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { api } from '../../../lib/api';
 import { AppShell } from '../../../components/app-shell';
+import { ProofMediaGallery } from '../../../components/proof-media-gallery';
 import { requireSessionUser } from '../../../lib/session';
 
 type BookingApprovalPageProps = {
@@ -26,7 +27,7 @@ async function decideIssue(formData: FormData) {
 }
 
 export default async function BookingApprovalPage({ searchParams }: BookingApprovalPageProps) {
-  await requireSessionUser();
+  const user = await requireSessionUser();
   if (!searchParams.bookingId) {
     redirect('/');
   }
@@ -35,7 +36,7 @@ export default async function BookingApprovalPage({ searchParams }: BookingAppro
 
   return (
     <AppShell
-      role="CUSTOMER"
+      role={user.role}
       currentPath="/bookings"
       eyebrow="Customer approval"
       title="Inspection decisions"
@@ -57,7 +58,11 @@ export default async function BookingApprovalPage({ searchParams }: BookingAppro
           </article>
           <article className="metric-card">
             <strong>{report.approvalSummary.canStartService ? 'Ready' : 'Blocked'}</strong>
-            <span>{report.approvalSummary.canStartService ? 'Service can begin.' : 'Critical items still need approval.'}</span>
+            <span>
+              {report.approvalSummary.canStartService
+                ? 'Service can begin.'
+                : 'Critical items still need approval.'}
+            </span>
           </article>
         </div>
       </section>
@@ -76,6 +81,10 @@ export default async function BookingApprovalPage({ searchParams }: BookingAppro
             </div>
             {issue.description ? <p>{issue.description}</p> : null}
             {issue.imageUrls.length ? <p>Images: {issue.imageUrls.join(', ')}</p> : null}
+            <ProofMediaGallery
+              items={issue.proofMedia}
+              emptyMessage="Inspection images will appear here once uploaded."
+            />
             <p>Status: {issue.approvalStatus}</p>
 
             {issue.approvalStatus === 'PENDING' ? (
@@ -97,7 +106,8 @@ export default async function BookingApprovalPage({ searchParams }: BookingAppro
               </form>
             ) : (
               <p>
-                Decision by {issue.customerDecisionByName ?? 'Customer'} {issue.customerDecisionNote ? `- ${issue.customerDecisionNote}` : ''}
+                Decision by {issue.customerDecisionByName ?? 'Customer'}{' '}
+                {issue.customerDecisionNote ? `- ${issue.customerDecisionNote}` : ''}
               </p>
             )}
           </article>

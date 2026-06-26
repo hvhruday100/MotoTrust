@@ -1,8 +1,15 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { BookingStatus, Prisma, ServiceOrderStatus, ServiceTaskStatus } from '@prisma/client';
+import {
+  BookingStatus,
+  MediaVisibility,
+  Prisma,
+  ServiceOrderStatus,
+  ServiceTaskStatus
+} from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { AuthenticatedAppUser } from '../auth/auth.types';
+import { toProofMediaResponse } from '../media-proofs/proof-media.mapper';
 import { DEFAULT_SERVICE_TASKS, TaskWorkflowStatus } from './service-execution.constants';
 import { AddServiceTaskPartDto } from './dto/add-service-task-part.dto';
 import { ServiceExecutionResponseDto } from './dto/service-execution-response.dto';
@@ -22,6 +29,11 @@ type ServiceExecutionPayload = Prisma.ServiceOrderGetPayload<{
             part: true;
           };
         };
+        proofMedia: {
+          include: {
+            uploadedBy: true;
+          };
+        };
       };
     };
   };
@@ -37,6 +49,11 @@ type ServiceTaskPayload = Prisma.ServiceTaskGetPayload<{
     partsUsed: {
       include: {
         part: true;
+      };
+    };
+    proofMedia: {
+      include: {
+        uploadedBy: true;
       };
     };
   };
@@ -105,6 +122,12 @@ export class ServiceExecutionService {
               include: {
                 part: true
               }
+            },
+            proofMedia: {
+              include: {
+                uploadedBy: true
+              },
+              orderBy: { createdAt: 'asc' }
             }
           },
           orderBy: { createdAt: 'asc' }
@@ -137,6 +160,12 @@ export class ServiceExecutionService {
                   include: {
                     part: true
                   }
+                },
+                proofMedia: {
+                  include: {
+                    uploadedBy: true
+                  },
+                  orderBy: { createdAt: 'asc' }
                 }
               },
               orderBy: { createdAt: 'asc' }
@@ -152,7 +181,7 @@ export class ServiceExecutionService {
 
     this.assertBookingAccess(serviceOrder.booking.customerId, user);
 
-    return this.toExecutionResponse(serviceOrder);
+    return this.toExecutionResponse(serviceOrder, user);
   }
 
   async getAssignedTasks(mechanicId: string, user: AuthenticatedAppUser): Promise<ServiceTaskResponseDto[]> {
@@ -172,15 +201,25 @@ export class ServiceExecutionService {
           include: {
             part: true
           }
+        },
+        proofMedia: {
+          include: {
+            uploadedBy: true
+          },
+          orderBy: { createdAt: 'asc' }
         }
       },
       orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }]
     });
 
-    return tasks.map((task) => this.toTaskResponse(task));
+    return tasks.map((task) => this.toTaskResponse(task, user));
   }
 
-  async updateTask(taskId: string, dto: UpdateServiceTaskDto, user: AuthenticatedAppUser): Promise<ServiceTaskResponseDto> {
+  async updateTask(
+    taskId: string,
+    dto: UpdateServiceTaskDto,
+    user: AuthenticatedAppUser
+  ): Promise<ServiceTaskResponseDto> {
     const task = await this.prisma.serviceTask.findUnique({
       where: { id: taskId },
       include: {
@@ -193,6 +232,12 @@ export class ServiceExecutionService {
           include: {
             part: true
           }
+        },
+        proofMedia: {
+          include: {
+            uploadedBy: true
+          },
+          orderBy: { createdAt: 'asc' }
         }
       }
     });
@@ -222,19 +267,22 @@ export class ServiceExecutionService {
     const statusChanged = dto.status !== undefined && requestedStatus !== currentStatus;
 
     if (!assignmentChanged && !notesChanged && !statusChanged) {
-      return this.toTaskResponse(task);
+      return this.toTaskResponse(task, user);
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const nextStartedAt =
-        requestedStatus === 'IN_PROGRESS' || requestedStatus === 'COMPLETED' ? task.startedAt ?? new Date() : task.startedAt;
-      const nextCompletedAt = requestedStatus === 'COMPLETED' ? task.completedAt ?? new Date() : null;
+        requestedStatus === 'IN_PROGRESS' || requestedStatus === 'COMPLETED'
+          ? (task.startedAt ?? new Date())
+          : task.startedAt;
+      const nextCompletedAt = requestedStatus === 'COMPLETED' ? (task.completedAt ?? new Date()) : null;
 
       const saved = await tx.serviceTask.update({
         where: { id: taskId },
         data: {
           status: this.toPrismaTaskStatus(requestedStatus),
-          assignedMechanicId: dto.assignedMechanicId !== undefined ? nextAssignedMechanicId : task.assignedMechanicId,
+          assignedMechanicId:
+            dto.assignedMechanicId !== undefined ? nextAssignedMechanicId : task.assignedMechanicId,
           assignedMechanicName:
             dto.assignedMechanicName !== undefined ? nextAssignedMechanicName : task.assignedMechanicName,
           notes: dto.notes !== undefined ? nextNotes : task.notes,
@@ -251,6 +299,12 @@ export class ServiceExecutionService {
             include: {
               part: true
             }
+          },
+          proofMedia: {
+            include: {
+              uploadedBy: true
+            },
+            orderBy: { createdAt: 'asc' }
           }
         }
       });
@@ -321,10 +375,14 @@ export class ServiceExecutionService {
       return saved;
     });
 
-    return this.toTaskResponse(updated);
+    return this.toTaskResponse(updated, user);
   }
 
-  async addPartUsage(taskId: string, dto: AddServiceTaskPartDto, user: AuthenticatedAppUser): Promise<ServiceTaskResponseDto> {
+  async addPartUsage(
+    taskId: string,
+    dto: AddServiceTaskPartDto,
+    user: AuthenticatedAppUser
+  ): Promise<ServiceTaskResponseDto> {
     const task = await this.prisma.serviceTask.findUnique({
       where: { id: taskId },
       include: {
@@ -407,12 +465,50 @@ export class ServiceExecutionService {
             include: {
               part: true
             }
+          },
+          proofMedia: {
+            include: {
+              uploadedBy: true
+            },
+            orderBy: { createdAt: 'asc' }
           }
         }
       });
     });
 
-    return this.toTaskResponse(updated);
+    return this.toTaskResponse(updated, user);
+  }
+
+  async getTaskById(taskId: string, user: AuthenticatedAppUser): Promise<ServiceTaskResponseDto> {
+    const task = await this.prisma.serviceTask.findUnique({
+      where: { id: taskId },
+      include: {
+        serviceOrder: {
+          include: {
+            booking: true
+          }
+        },
+        partsUsed: {
+          include: {
+            part: true
+          }
+        },
+        proofMedia: {
+          include: {
+            uploadedBy: true
+          },
+          orderBy: { createdAt: 'asc' }
+        }
+      }
+    });
+
+    if (!task) {
+      throw new NotFoundException('Service task not found.');
+    }
+
+    this.assertBookingAccess(task.serviceOrder.booking.customerId, user);
+
+    return this.toTaskResponse(task, user);
   }
 
   private assertBookingInService(status: BookingStatus, action: string): void {
@@ -472,7 +568,10 @@ export class ServiceExecutionService {
     }
   }
 
-  private toExecutionResponse(serviceOrder: ServiceExecutionPayload): ServiceExecutionResponseDto {
+  private toExecutionResponse(
+    serviceOrder: ServiceExecutionPayload,
+    user: AuthenticatedAppUser
+  ): ServiceExecutionResponseDto {
     return {
       bookingId: serviceOrder.bookingId,
       bookingStatus: serviceOrder.booking.status,
@@ -495,12 +594,17 @@ export class ServiceExecutionService {
         completedAt: task.completedAt,
         createdAt: task.createdAt,
         updatedAt: task.updatedAt,
-        partsUsed: task.partsUsed.map((partUsage) => this.toPartUsageResponse(partUsage))
+        partsUsed: task.partsUsed.map((partUsage) => this.toPartUsageResponse(partUsage)),
+        proofMedia: task.proofMedia
+          .filter((asset) =>
+            user.role === 'CUSTOMER' ? asset.visibility === MediaVisibility.CUSTOMER_VISIBLE : true
+          )
+          .map((asset) => toProofMediaResponse(asset))
       }))
     };
   }
 
-  private toTaskResponse(task: ServiceTaskPayload): ServiceTaskResponseDto {
+  private toTaskResponse(task: ServiceTaskPayload, user: AuthenticatedAppUser): ServiceTaskResponseDto {
     return {
       id: task.id,
       serviceOrderId: task.serviceOrderId,
@@ -516,7 +620,12 @@ export class ServiceExecutionService {
       completedAt: task.completedAt,
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
-      partsUsed: task.partsUsed.map((partUsage) => this.toPartUsageResponse(partUsage))
+      partsUsed: task.partsUsed.map((partUsage) => this.toPartUsageResponse(partUsage)),
+      proofMedia: task.proofMedia
+        .filter((asset) =>
+          user.role === 'CUSTOMER' ? asset.visibility === MediaVisibility.CUSTOMER_VISIBLE : true
+        )
+        .map((asset) => toProofMediaResponse(asset))
     };
   }
 

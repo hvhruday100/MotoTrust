@@ -25,6 +25,8 @@ export type InspectionIssueSeverity = 'CRITICAL' | 'RECOMMENDED' | 'OPTIONAL';
 export type IssueApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type ServiceTaskStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
 export type UserRole = 'CUSTOMER' | 'MECHANIC' | 'ADMIN';
+export type MediaProofType = 'PHOTO' | 'VIDEO' | 'CCTV_CLIP' | 'DOCUMENT';
+export type MediaVisibility = 'INTERNAL' | 'CUSTOMER_VISIBLE';
 
 export type AppUser = {
   id: string;
@@ -92,6 +94,27 @@ export type BookingTimelineEvent = {
 
 export type BookingDetail = ServiceBooking & {
   timeline: BookingTimelineEvent[];
+  mediaTimeline: ProofMedia[];
+};
+
+export type ProofMedia = {
+  id: string;
+  bookingId: string;
+  inspectionIssueId?: string | null;
+  serviceTaskId?: string | null;
+  uploadedById?: string | null;
+  uploadedByName?: string | null;
+  type: MediaProofType;
+  visibility: MediaVisibility;
+  storageProvider: string;
+  storageKey: string;
+  storageUrl: string;
+  mimeType?: string | null;
+  fileName?: string | null;
+  label?: string | null;
+  caption?: string | null;
+  capturedAt?: string | null;
+  createdAt: string;
 };
 
 export type InspectionIssue = {
@@ -102,6 +125,7 @@ export type InspectionIssue = {
   estimatedPartsCost: number;
   estimatedLaborCost: number;
   imageUrls: string[];
+  proofMedia: ProofMedia[];
   approvalStatus: IssueApprovalStatus;
   customerDecisionAt?: string | null;
   customerDecisionById?: string | null;
@@ -162,6 +186,7 @@ export type ServiceTask = {
   createdAt: string;
   updatedAt: string;
   partsUsed: ServicePartUsage[];
+  proofMedia: ProofMedia[];
 };
 
 export type ServiceExecutionBoard = {
@@ -280,6 +305,27 @@ export const api = {
 
   addServiceTaskPart(taskId: string, input: JsonObject) {
     return request<ServiceTask>(`/service-tasks/${taskId}/parts`, {
+      method: 'POST',
+      body: JSON.stringify(input)
+    });
+  },
+
+  uploadInspectionIssueMedia(issueId: string, input: JsonObject) {
+    return request<InspectionReport>(`/inspection-issues/${issueId}/media`, {
+      method: 'POST',
+      body: JSON.stringify(input)
+    });
+  },
+
+  uploadServiceTaskMedia(taskId: string, input: JsonObject) {
+    return request<ServiceTask>(`/service-tasks/${taskId}/media`, {
+      method: 'POST',
+      body: JSON.stringify(input)
+    });
+  },
+
+  uploadDeliveryProof(bookingId: string, input: JsonObject) {
+    return request<BookingDetail>(`/bookings/${bookingId}/delivery-proof`, {
       method: 'POST',
       body: JSON.stringify(input)
     });

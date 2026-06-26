@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { InspectionIssueSeverity, IssueApprovalStatus } from '@prisma/client';
+import { ProofMediaResponseDto } from '../../media-proofs/dto/proof-media-response.dto';
 
 export class InspectionIssueResponseDto {
   @ApiProperty()
@@ -23,6 +24,9 @@ export class InspectionIssueResponseDto {
   @ApiProperty({ type: [String] })
   imageUrls!: string[];
 
+  @ApiProperty({ type: [ProofMediaResponseDto] })
+  proofMedia!: ProofMediaResponseDto[];
+
   @ApiProperty({ enum: IssueApprovalStatus })
   approvalStatus!: IssueApprovalStatus;
 
@@ -38,4 +42,3 @@ export class InspectionIssueResponseDto {
   @ApiPropertyOptional()
   customerDecisionNote?: string | null;
 }
-

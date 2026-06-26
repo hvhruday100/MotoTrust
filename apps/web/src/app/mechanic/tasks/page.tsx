@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { formatCurrency } from '@mototrust/ui';
 import { api, ServiceTask, ServiceTaskStatus } from '../../../lib/api';
 import { AppShell } from '../../../components/app-shell';
+import { ProofMediaGallery } from '../../../components/proof-media-gallery';
+import { ProofMediaUploader } from '../../../components/proof-media-uploader';
 import { requireSessionUser } from '../../../lib/session';
 
 const taskStatuses: ServiceTaskStatus[] = ['PENDING', 'IN_PROGRESS', 'COMPLETED'];
@@ -99,7 +101,9 @@ export default async function MechanicTasksPage({ searchParams }: MechanicTasksP
                 <h2>{selectedTask.name}</h2>
                 <p>{selectedTask.description ?? 'Standard service workflow task.'}</p>
               </div>
-              <span className={`badge badge-${selectedTask.status.toLowerCase()}`}>{formatLabel(selectedTask.status)}</span>
+              <span className={`badge badge-${selectedTask.status.toLowerCase()}`}>
+                {formatLabel(selectedTask.status)}
+              </span>
             </div>
 
             <dl className="task-meta">
@@ -183,6 +187,24 @@ export default async function MechanicTasksPage({ searchParams }: MechanicTasksP
                 <button type="submit">Add part</button>
               </form>
             </div>
+
+            <div className="parts-section">
+              <h4>Service proof</h4>
+              <ProofMediaGallery
+                items={selectedTask.proofMedia}
+                emptyMessage="No service proof uploaded yet."
+              />
+              <div className="section-stack" style={{ marginTop: 12 }}>
+                <ProofMediaUploader
+                  endpoint={`/media/service-tasks/${selectedTask.id}`}
+                  storageFolder={`service-tasks/${selectedTask.id}/mechanic`}
+                  buttonText="Upload task photos"
+                  labelOptions={['Before Service', 'In Progress', 'After Service']}
+                  defaultLabel="In Progress"
+                  visibility="CUSTOMER_VISIBLE"
+                />
+              </div>
+            </div>
           </article>
 
           <aside className="focus-sidebar">
@@ -200,7 +222,10 @@ export default async function MechanicTasksPage({ searchParams }: MechanicTasksP
                 <li>
                   <strong>Customer view</strong>
                   <p>
-                    <Link href={`/bookings/progress?bookingId=${selectedTask.bookingId}`} className="inline-link">
+                    <Link
+                      href={`/bookings/progress?bookingId=${selectedTask.bookingId}`}
+                      className="inline-link"
+                    >
                       Open progress page
                     </Link>
                   </p>
@@ -231,7 +256,9 @@ export default async function MechanicTasksPage({ searchParams }: MechanicTasksP
                       <h3>{task.name}</h3>
                       <p>{task.bookingId}</p>
                     </div>
-                    <span className={`badge badge-${task.status.toLowerCase()}`}>{formatLabel(task.status)}</span>
+                    <span className={`badge badge-${task.status.toLowerCase()}`}>
+                      {formatLabel(task.status)}
+                    </span>
                   </div>
                   {task.notes ? <p className="task-notes">{task.notes}</p> : null}
                   <div className="actions">

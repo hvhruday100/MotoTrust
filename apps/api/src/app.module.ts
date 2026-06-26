@@ -5,6 +5,7 @@ import { BookingsModule } from './modules/bookings/bookings.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { HealthModule } from './modules/health/health.module';
 import { InspectionsModule } from './modules/inspections/inspections.module';
+import { MediaProofsModule } from './modules/media-proofs/media-proofs.module';
 import { MotorcyclesModule } from './modules/motorcycles/motorcycles.module';
 import { PricingModule } from './modules/pricing/pricing.module';
 import { ServiceExecutionModule } from './modules/service-execution/service-execution.module';
@@ -19,6 +20,7 @@ import { ServiceExecutionModule } from './modules/service-execution/service-exec
     PricingModule,
     BookingsModule,
     InspectionsModule,
+    MediaProofsModule,
     ServiceExecutionModule
   ]
 })
