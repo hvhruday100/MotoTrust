@@ -33,8 +33,27 @@ export class AuthService {
 
       return this.toAuthenticatedUser(synced);
     } catch (error) {
-      if (this.isUniqueConstraintViolation(error, 'email') && identity.email) {
-        throw new ConflictException('This email address is already linked to another MotoTrust account.');
+      const uniqueTargets = this.getUniqueConflictTargets(error);
+
+      if (uniqueTargets.length === 0) {
+        throw error;
+      }
+
+      const existingByFirebaseUid = await this.findUserByFirebaseUid(identity.firebaseUid);
+      if (existingByFirebaseUid) {
+        return this.syncExistingUser(existingByFirebaseUid, identity, lastLoginAt);
+      }
+
+      if (uniqueTargets.includes('email') && identity.email) {
+        const existingByEmail = await this.findUserByEmail(identity.email);
+
+        if (existingByEmail) {
+          if (existingByEmail.firebaseUid !== identity.firebaseUid) {
+            throw new ConflictException('This email address is already linked to another MotoTrust account.');
+          }
+
+          return this.syncExistingUser(existingByEmail, identity, lastLoginAt);
+        }
       }
 
       throw error;
@@ -126,12 +145,55 @@ export class AuthService {
     };
   }
 
-  private isUniqueConstraintViolation(error: unknown, field: string): boolean {
+  private getUniqueConflictTargets(error: unknown): string[] {
     if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
-      return false;
+      return [];
     }
 
-    const target = Array.isArray(error.meta?.target) ? error.meta.target : [];
-    return target.includes(field);
+    return Array.isArray(error.meta?.target) ? error.meta.target.filter((value): value is string => typeof value === 'string') : [];
+  }
+
+  private findUserByFirebaseUid(firebaseUid: string) {
+    return this.prisma.user.findUnique({
+      where: { firebaseUid },
+      include: { customerProfile: true }
+    });
+  }
+
+  private findUserByEmail(email: string) {
+    return this.prisma.user.findUnique({
+      where: { email },
+      include: { customerProfile: true }
+    });
+  }
+
+  private syncExistingUser(
+    user: Prisma.UserGetPayload<{
+      include: {
+        customerProfile: true;
+      };
+    }>,
+    identity: FirebaseIdentity,
+    lastLoginAt: Date
+  ): Promise<AuthenticatedAppUser> {
+    return this.prisma.user
+      .update({
+        where: { id: user.id },
+        data: {
+          email: identity.email ?? undefined,
+          phone: identity.phone ?? undefined,
+          displayName: identity.displayName ?? undefined,
+          lastLoginAt
+        },
+        include: { customerProfile: true }
+      })
+      .catch((error: unknown) => {
+        if (this.getUniqueConflictTargets(error).includes('email') && identity.email && user.email !== identity.email) {
+          throw new ConflictException('This email address is already linked to another MotoTrust account.');
+        }
+
+        throw error;
+      })
+      .then((updated) => this.toAuthenticatedUser(updated));
   }
 }
