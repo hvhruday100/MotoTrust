@@ -18,13 +18,4 @@ export class RegisterCustomerDto {
   @IsPhoneNumber()
   phone?: string;
 
-  @ApiPropertyOptional({
-    description: 'Firebase UID when Firebase auth is enabled. Optional while Firebase is mocked.',
-    example: 'firebase-user-uid'
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(160)
-  firebaseUid?: string;
 }
-

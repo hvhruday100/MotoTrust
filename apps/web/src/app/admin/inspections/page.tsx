@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { api } from '../../../lib/api';
+import { requireSessionUser } from '../../../lib/session';
 
 type AdminInspectionsPageProps = {
   searchParams: {
@@ -37,8 +38,6 @@ async function createInspectionReport(formData: FormData) {
 
   await api.createInspectionReport(bookingId, {
     summary: String(formData.get('summary') ?? '') || undefined,
-    createdByType: 'MECHANIC',
-    createdByName: String(formData.get('createdByName') ?? 'Workshop Mechanic'),
     issues
   });
 
@@ -46,6 +45,7 @@ async function createInspectionReport(formData: FormData) {
 }
 
 export default async function AdminInspectionsPage({ searchParams }: AdminInspectionsPageProps) {
+  await requireSessionUser(['ADMIN']);
   if (!searchParams.bookingId) {
     redirect('/admin/bookings');
   }
@@ -87,11 +87,6 @@ export default async function AdminInspectionsPage({ searchParams }: AdminInspec
       ) : (
         <form action={createInspectionReport} className="flow-form" style={{ marginTop: 32 }}>
           <input type="hidden" name="bookingId" value={searchParams.bookingId} />
-
-          <label>
-            Inspector name
-            <input name="createdByName" defaultValue="Workshop Mechanic" required minLength={2} maxLength={120} />
-          </label>
 
           <label>
             Summary
@@ -145,4 +140,3 @@ export default async function AdminInspectionsPage({ searchParams }: AdminInspec
     </main>
   );
 }
-

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { api, BookingStatus, ServiceTask, ServiceTaskStatus } from '../../../lib/api';
 import { formatCurrency } from '@mototrust/ui';
+import { requireSessionUser } from '../../../lib/session';
 
 const lifecycleStatuses: BookingStatus[] = [
   'CREATED',
@@ -55,6 +56,7 @@ function groupTasks(tasks: ServiceTask[], status: ServiceTaskStatus) {
 }
 
 export default async function BookingProgressPage({ searchParams }: ProgressPageProps) {
+  await requireSessionUser();
   if (!searchParams.bookingId) {
     redirect('/');
   }

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { api, ServiceTask, ServiceTaskStatus } from '../../../lib/api';
 import { formatCurrency } from '@mototrust/ui';
+import { requireSessionUser } from '../../../lib/session';
 
 const boardStatuses: ServiceTaskStatus[] = ['PENDING', 'IN_PROGRESS', 'COMPLETED'];
 
@@ -41,9 +42,7 @@ async function updateTask(formData: FormData) {
     status: String(formData.get('status') ?? '') || undefined,
     assignedMechanicId: String(formData.get('assignedMechanicId') ?? '') || undefined,
     assignedMechanicName: String(formData.get('assignedMechanicName') ?? '') || undefined,
-    notes: String(formData.get('notes') ?? '') || undefined,
-    actorType: 'MECHANIC',
-    actorName: String(formData.get('actorName') ?? 'Workshop Mechanic') || 'Workshop Mechanic'
+    notes: String(formData.get('notes') ?? '') || undefined
   });
 
   redirect(`/admin/service-execution?bookingId=${bookingId}`);
@@ -61,9 +60,7 @@ async function addPart(formData: FormData) {
     manufacturer: String(formData.get('manufacturer') ?? ''),
     quantity: Number(formData.get('quantity') ?? 1),
     unitPrice: Number(formData.get('unitPrice') ?? 0),
-    batchCode: String(formData.get('batchCode') ?? '') || undefined,
-    actorType: 'MECHANIC',
-    actorName: String(formData.get('actorName') ?? 'Workshop Mechanic') || 'Workshop Mechanic'
+    batchCode: String(formData.get('batchCode') ?? '') || undefined
   });
 
   redirect(`/admin/service-execution?bookingId=${bookingId}`);
@@ -118,10 +115,6 @@ function renderTaskCard(task: ServiceTask, bookingId: string) {
             ))}
           </select>
         </label>
-        <label>
-          Actor name
-          <input name="actorName" defaultValue={task.assignedMechanicName ?? 'Workshop Mechanic'} />
-        </label>
         <label style={{ gridColumn: '1 / -1' }}>
           Notes
           <textarea name="notes" defaultValue={task.notes ?? ''} rows={3} />
@@ -173,7 +166,6 @@ function renderTaskCard(task: ServiceTask, bookingId: string) {
             Batch code
             <input name="batchCode" placeholder="Optional" />
           </label>
-          <input type="hidden" name="actorName" value={task.assignedMechanicName ?? 'Workshop Mechanic'} />
           <button type="submit">Add part</button>
         </form>
       </div>
@@ -182,6 +174,7 @@ function renderTaskCard(task: ServiceTask, bookingId: string) {
 }
 
 export default async function AdminServiceExecutionPage({ searchParams }: ServiceExecutionPageProps) {
+  await requireSessionUser(['ADMIN']);
   if (!searchParams.bookingId) {
     redirect('/admin/bookings');
   }

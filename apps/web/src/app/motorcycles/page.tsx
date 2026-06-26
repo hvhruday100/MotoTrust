@@ -1,11 +1,6 @@
 import { redirect } from 'next/navigation';
 import { api } from '../../lib/api';
-
-type MotorcyclesPageProps = {
-  searchParams: {
-    customerId?: string;
-  };
-};
+import { requireSessionUser } from '../../lib/session';
 
 async function addMotorcycle(formData: FormData) {
   'use server';
@@ -20,11 +15,12 @@ async function addMotorcycle(formData: FormData) {
     odometerKm: formData.get('odometerKm') ? Number(formData.get('odometerKm')) : undefined
   });
 
-  redirect(`/bookings?customerId=${customerId}&motorcycleId=${motorcycle.id}`);
+  redirect('/bookings');
 }
 
-export default function MotorcyclesPage({ searchParams }: MotorcyclesPageProps) {
-  if (!searchParams.customerId) {
+export default async function MotorcyclesPage() {
+  const user = await requireSessionUser(['CUSTOMER']);
+  if (!user.customerProfileId) {
     redirect('/register');
   }
 
@@ -36,7 +32,7 @@ export default function MotorcyclesPage({ searchParams }: MotorcyclesPageProps) 
         <p className="lede">Attach motorcycle details to the customer profile.</p>
 
         <form action={addMotorcycle} className="flow-form">
-          <input type="hidden" name="customerId" value={searchParams.customerId} />
+          <input type="hidden" name="customerId" value={user.customerProfileId} />
 
           <label>
             Registration number
@@ -76,4 +72,3 @@ export default function MotorcyclesPage({ searchParams }: MotorcyclesPageProps) 
     </main>
   );
 }
-

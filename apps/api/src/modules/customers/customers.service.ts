@@ -1,45 +1,69 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { MockIdentityProviderService } from '../auth/mock-identity-provider.service';
+import { AuthenticatedAppUser } from '../auth/auth.types';
 import { CustomerResponseDto } from './dto/customer-response.dto';
 import { RegisterCustomerDto } from './dto/register-customer.dto';
 
 @Injectable()
 export class CustomersService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly identityProvider: MockIdentityProviderService
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async register(dto: RegisterCustomerDto): Promise<CustomerResponseDto> {
-    if (!dto.email && !dto.phone) {
+  async register(user: AuthenticatedAppUser, dto: RegisterCustomerDto): Promise<CustomerResponseDto> {
+    const email = dto.email?.toLowerCase() ?? user.email ?? undefined;
+    const phone = dto.phone ?? user.phone ?? undefined;
+    const customerProfileId = user.customerProfileId;
+
+    if (!email && !phone) {
       throw new ConflictException('Either email or phone is required to register a customer.');
     }
 
-    const firebaseUid = this.identityProvider.resolveCustomerUid(dto);
-    const existing = await this.prisma.user.findFirst({
+    if (customerProfileId) {
+      const updated = await this.prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: user.id },
+          data: {
+            email: email ?? user.email,
+            phone: phone ?? user.phone,
+            displayName: dto.fullName.trim()
+          }
+        });
+
+        const profile = await tx.customerProfile.update({
+          where: { id: customerProfileId },
+          data: { fullName: dto.fullName.trim() },
+          include: { user: true }
+        });
+        return profile;
+      });
+
+      return this.toResponse(updated, updated.user.email, updated.user.phone);
+    }
+
+    const conflict = await this.prisma.customerProfile.findFirst({
       where: {
-        OR: [
-          { firebaseUid },
-          ...(dto.email ? [{ email: dto.email.toLowerCase() }] : []),
-          ...(dto.phone ? [{ phone: dto.phone }] : [])
-        ]
-      },
-      include: { customerProfile: true }
+        userId: {
+          not: user.id
+        },
+        user: {
+          OR: [
+            ...(email ? [{ email }] : []),
+            ...(phone ? [{ phone }] : [])
+          ]
+        }
+      }
     });
 
-    if (existing?.customerProfile) {
-      return this.toResponse(existing.customerProfile, existing.email, existing.phone);
+    if (conflict) {
+      throw new ConflictException('A customer profile already exists for the supplied email or phone.');
     }
 
     const customer = await this.prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
+      const updatedUser = await tx.user.update({
+        where: { id: user.id },
         data: {
-          firebaseUid,
-          email: dto.email?.toLowerCase(),
-          phone: dto.phone,
-          role: UserRole.CUSTOMER
+          email,
+          phone,
+          displayName: dto.fullName.trim()
         }
       });
 
@@ -50,13 +74,17 @@ export class CustomersService {
         }
       });
 
-      return { profile, user };
+      return { profile, user: updatedUser };
     });
 
     return this.toResponse(customer.profile, customer.user.email, customer.user.phone);
   }
 
-  async findById(customerId: string): Promise<CustomerResponseDto> {
+  async findById(customerId: string, user: AuthenticatedAppUser): Promise<CustomerResponseDto> {
+    if (user.customerProfileId !== customerId && user.role !== 'ADMIN') {
+      throw new ForbiddenException('You can only access your own customer profile.');
+    }
+
     const customer = await this.prisma.customerProfile.findUnique({
       where: { id: customerId },
       include: { user: true }

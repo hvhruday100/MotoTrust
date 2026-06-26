@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { api } from '../../../lib/api';
+import { requireSessionUser } from '../../../lib/session';
 
 type BookingApprovalPageProps = {
   searchParams: {
@@ -17,7 +18,6 @@ async function decideIssue(formData: FormData) {
 
   await api.approveInspectionIssue(issueId, {
     approvalStatus: decision,
-    actorName: String(formData.get('actorName') ?? 'Customer'),
     note: String(formData.get('note') ?? '') || undefined
   });
 
@@ -25,6 +25,7 @@ async function decideIssue(formData: FormData) {
 }
 
 export default async function BookingApprovalPage({ searchParams }: BookingApprovalPageProps) {
+  await requireSessionUser();
   if (!searchParams.bookingId) {
     redirect('/');
   }
@@ -66,7 +67,6 @@ export default async function BookingApprovalPage({ searchParams }: BookingAppro
               <form action={decideIssue} className="flow-form">
                 <input type="hidden" name="issueId" value={issue.id} />
                 <input type="hidden" name="bookingId" value={report.bookingId} />
-                <input type="hidden" name="actorName" value="Customer" />
                 <label>
                   Note
                   <input name="note" placeholder="Optional note for this issue" maxLength={1000} />
@@ -91,4 +91,3 @@ export default async function BookingApprovalPage({ searchParams }: BookingAppro
     </main>
   );
 }
-

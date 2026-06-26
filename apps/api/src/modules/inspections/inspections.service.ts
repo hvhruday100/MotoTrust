@@ -1,6 +1,8 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { BookingStatus, IssueApprovalStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { AuthService } from '../auth/auth.service';
+import { AuthenticatedAppUser } from '../auth/auth.types';
 import { ApproveInspectionIssueDto } from './dto/approve-inspection-issue.dto';
 import { CreateInspectionReportDto } from './dto/create-inspection-report.dto';
 import { InspectionIssueResponseDto } from './dto/inspection-issue-response.dto';
@@ -9,9 +11,16 @@ import { InspectionReportWithRelations } from './types/inspection-report-with-re
 
 @Injectable()
 export class InspectionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly authService: AuthService
+  ) {}
 
-  async createReport(bookingId: string, dto: CreateInspectionReportDto): Promise<InspectionReportResponseDto> {
+  async createReport(
+    bookingId: string,
+    dto: CreateInspectionReportDto,
+    user: AuthenticatedAppUser
+  ): Promise<InspectionReportResponseDto> {
     const booking = await this.prisma.booking.findUnique({
       where: { id: bookingId },
       include: { inspectionReport: true }
@@ -33,14 +42,16 @@ export class InspectionsService {
       throw new BadRequestException('At least one inspection issue is required.');
     }
 
+    const actor = this.authService.toTimelineActor(user);
+
     const report = await this.prisma.$transaction(async (tx) => {
       const created = await tx.inspectionReport.create({
         data: {
           bookingId,
           summary: dto.summary?.trim(),
-          createdByType: dto.createdByType,
-          createdById: dto.createdById?.trim(),
-          createdByName: dto.createdByName.trim(),
+          createdByType: actor.actorType,
+          createdById: actor.actorId,
+          createdByName: actor.actorName,
           issues: {
             create: dto.issues.map((issue) => ({
               title: issue.title.trim(),
@@ -63,9 +74,9 @@ export class InspectionsService {
           bookingId,
           fromStatus: booking.status,
           toStatus: booking.status,
-          actorType: dto.createdByType,
-          actorId: dto.createdById?.trim(),
-          actorName: dto.createdByName.trim(),
+          actorType: actor.actorType,
+          actorId: actor.actorId,
+          actorName: actor.actorName,
           note: 'Inspection report created.',
           metadata: {
             action: 'INSPECTION_REPORT_CREATED',
@@ -80,7 +91,7 @@ export class InspectionsService {
     return this.toReportResponse(report);
   }
 
-  async getReportByBookingId(bookingId: string): Promise<InspectionReportResponseDto> {
+  async getReportByBookingId(bookingId: string, user: AuthenticatedAppUser): Promise<InspectionReportResponseDto> {
     const report = await this.prisma.inspectionReport.findUnique({
       where: { bookingId },
       include: {
@@ -93,10 +104,16 @@ export class InspectionsService {
       throw new NotFoundException('Inspection report not found for this booking.');
     }
 
+    this.assertBookingAccess(report.booking.customerId, user);
+
     return this.toReportResponse(report);
   }
 
-  async approveIssue(issueId: string, dto: ApproveInspectionIssueDto): Promise<InspectionReportResponseDto> {
+  async approveIssue(
+    issueId: string,
+    dto: ApproveInspectionIssueDto,
+    user: AuthenticatedAppUser
+  ): Promise<InspectionReportResponseDto> {
     const issue = await this.prisma.inspectionIssue.findUnique({
       where: { id: issueId },
       include: {
@@ -113,9 +130,13 @@ export class InspectionsService {
       throw new NotFoundException('Inspection issue not found.');
     }
 
+    this.assertBookingAccess(issue.report.booking.customerId, user);
+
     if (issue.approvalStatus !== IssueApprovalStatus.PENDING) {
       throw new BadRequestException('Inspection issue has already been decided.');
     }
+
+    const actor = this.authService.toTimelineActor(user);
 
     const report = await this.prisma.$transaction(async (tx) => {
       await tx.inspectionIssue.update({
@@ -123,8 +144,8 @@ export class InspectionsService {
         data: {
           approvalStatus: dto.approvalStatus,
           customerDecisionAt: new Date(),
-          customerDecisionById: dto.actorId?.trim(),
-          customerDecisionByName: dto.actorName.trim(),
+          customerDecisionById: actor.actorId,
+          customerDecisionByName: actor.actorName,
           customerDecisionNote: dto.note?.trim()
         }
       });
@@ -134,9 +155,9 @@ export class InspectionsService {
           bookingId: issue.report.bookingId,
           fromStatus: issue.report.booking.status,
           toStatus: issue.report.booking.status,
-          actorType: 'CUSTOMER',
-          actorId: dto.actorId?.trim(),
-          actorName: dto.actorName.trim(),
+          actorType: actor.actorType,
+          actorId: actor.actorId,
+          actorName: actor.actorName,
           note: `${dto.approvalStatus === IssueApprovalStatus.APPROVED ? 'Approved' : 'Rejected'} inspection issue: ${issue.title}`,
           metadata: {
             action: 'INSPECTION_ISSUE_DECISION',
@@ -185,6 +206,12 @@ export class InspectionsService {
       issues: report.issues.map((issue) => this.toIssueResponse(issue)),
       approvalSummary: this.toApprovalSummary(report.issues)
     };
+  }
+
+  private assertBookingAccess(customerId: string, user: AuthenticatedAppUser): void {
+    if (user.role === 'CUSTOMER' && user.customerProfileId !== customerId) {
+      throw new ForbiddenException('You can only access inspection data for your own booking.');
+    }
   }
 
   private toIssueResponse(issue: {
@@ -247,4 +274,3 @@ export class InspectionsService {
     };
   }
 }
-

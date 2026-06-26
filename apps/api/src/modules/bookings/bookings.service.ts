@@ -1,7 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { BookingActorType, BookingStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { PricingService } from '../pricing/pricing.service';
+import { AuthService } from '../auth/auth.service';
+import { AuthenticatedAppUser } from '../auth/auth.types';
 import { getAllowedNextStatuses, isAllowedTransition } from './booking-status.transitions';
 import { AddressInputDto } from './dto/address-input.dto';
 import { BookingDetailResponseDto } from './dto/booking-detail-response.dto';
@@ -17,17 +19,23 @@ export class BookingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pricingService: PricingService,
-    private readonly serviceExecutionService: ServiceExecutionService
+    private readonly serviceExecutionService: ServiceExecutionService,
+    private readonly authService: AuthService
   ) {}
 
-  async create(dto: CreateServiceBookingDto): Promise<ServiceBookingResponseDto> {
-    const customer = await this.prisma.customerProfile.findUnique({ where: { id: dto.customerId } });
+  async create(dto: CreateServiceBookingDto, user: AuthenticatedAppUser): Promise<ServiceBookingResponseDto> {
+    const customerId = user.customerProfileId;
+    if (!customerId) {
+      throw new BadRequestException('Customer profile onboarding is required before creating a booking.');
+    }
+
+    const customer = await this.prisma.customerProfile.findUnique({ where: { id: customerId } });
     if (!customer) {
       throw new NotFoundException('Customer not found.');
     }
 
     const motorcycle = await this.prisma.motorcycle.findUnique({ where: { id: dto.motorcycleId } });
-    if (!motorcycle || motorcycle.customerId !== dto.customerId) {
+    if (!motorcycle || motorcycle.customerId !== customerId) {
       throw new BadRequestException('Motorcycle does not belong to the supplied customer.');
     }
 
@@ -39,15 +47,17 @@ export class BookingsService {
 
     const booking = await this.prisma.$transaction(async (tx) => {
       const pickupAddress = await tx.address.create({
-        data: this.toAddressCreateInput(dto.customerId, dto.pickupAddress)
+        data: this.toAddressCreateInput(customerId, dto.pickupAddress)
       });
       const dropAddress = await tx.address.create({
-        data: this.toAddressCreateInput(dto.customerId, dto.dropAddress)
+        data: this.toAddressCreateInput(customerId, dto.dropAddress)
       });
+
+      const actor = this.authService.toTimelineActor(user);
 
       return tx.booking.create({
         data: {
-          customerId: dto.customerId,
+          customerId,
           motorcycleId: dto.motorcycleId,
           servicePackageId: servicePackage.id,
           pickupAddressId: pickupAddress.id,
@@ -59,8 +69,9 @@ export class BookingsService {
           timelineEvents: {
             create: {
               toStatus: BookingStatus.CREATED,
-              actorType: BookingActorType.CUSTOMER,
-              actorName: 'Customer',
+              actorType: actor.actorType,
+              actorId: actor.actorId,
+              actorName: actor.actorName,
               note: 'Booking created by customer.'
             }
           }
@@ -74,10 +85,14 @@ export class BookingsService {
       });
     });
 
-    return this.toResponse(booking);
+    return this.toResponse(booking as BookingWithRelations);
   }
 
-  async listByCustomer(customerId: string): Promise<ServiceBookingResponseDto[]> {
+  async listByCustomer(customerId: string, user: AuthenticatedAppUser): Promise<ServiceBookingResponseDto[]> {
+    if (user.role === 'CUSTOMER' && user.customerProfileId !== customerId) {
+      throw new ForbiddenException('You can only view your own bookings.');
+    }
+
     const customer = await this.prisma.customerProfile.findUnique({ where: { id: customerId } });
     if (!customer) {
       throw new NotFoundException('Customer not found.');
@@ -112,7 +127,7 @@ export class BookingsService {
     return bookings.map((booking) => this.toResponse(booking));
   }
 
-  async findById(bookingId: string): Promise<BookingDetailResponseDto> {
+  async findById(bookingId: string, user: AuthenticatedAppUser): Promise<BookingDetailResponseDto> {
     const booking = await this.prisma.booking.findUnique({
       where: { id: bookingId },
       include: {
@@ -127,10 +142,16 @@ export class BookingsService {
       throw new NotFoundException('Booking not found.');
     }
 
+    this.assertBookingAccess(booking.customerId, user);
+
     return this.toDetailResponse(booking);
   }
 
-  async updateStatus(bookingId: string, dto: UpdateBookingStatusDto): Promise<BookingDetailResponseDto> {
+  async updateStatus(
+    bookingId: string,
+    dto: UpdateBookingStatusDto,
+    user: AuthenticatedAppUser
+  ): Promise<BookingDetailResponseDto> {
     const booking = await this.prisma.booking.findUnique({
       where: { id: bookingId },
       include: {
@@ -167,14 +188,16 @@ export class BookingsService {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      const actor = this.authService.toTimelineActor(user);
+
       await tx.bookingTimelineEvent.create({
         data: {
           bookingId,
           fromStatus: booking.status,
           toStatus: dto.nextStatus,
-          actorType: dto.actorType,
-          actorId: dto.actorId?.trim(),
-          actorName: dto.actorName.trim(),
+          actorType: actor.actorType,
+          actorId: actor.actorId,
+          actorName: actor.actorName,
           note: dto.note?.trim()
         }
       });
@@ -245,6 +268,12 @@ export class BookingsService {
     );
     if (criticalNotApproved.length > 0) {
       throw new BadRequestException('All CRITICAL inspection items must be approved before moving to IN_SERVICE.');
+    }
+  }
+
+  private assertBookingAccess(customerId: string, user: AuthenticatedAppUser): void {
+    if (user.role === 'CUSTOMER' && user.customerProfileId !== customerId) {
+      throw new ForbiddenException('You can only access your own bookings.');
     }
   }
 

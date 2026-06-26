@@ -1,13 +1,7 @@
 import { redirect } from 'next/navigation';
 import { api } from '../../lib/api';
 import { formatCurrency } from '@mototrust/ui';
-
-type BookingsPageProps = {
-  searchParams: {
-    customerId?: string;
-    motorcycleId?: string;
-  };
-};
+import { requireSessionUser } from '../../lib/session';
 
 async function createBooking(formData: FormData) {
   'use server';
@@ -36,15 +30,20 @@ async function createBooking(formData: FormData) {
     }
   });
 
-  redirect(`/bookings/success?bookingId=${booking.id}&customerId=${booking.customerId}`);
+  redirect(`/bookings/success?bookingId=${booking.id}`);
 }
 
-export default async function BookingsPage({ searchParams }: BookingsPageProps) {
-  if (!searchParams.customerId || !searchParams.motorcycleId) {
+export default async function BookingsPage() {
+  const user = await requireSessionUser(['CUSTOMER']);
+  if (!user.customerProfileId) {
     redirect('/register');
   }
 
   const servicePackages = await api.listServicePackages();
+  const motorcycles = await api.listMotorcycles(user.customerProfileId);
+  if (!motorcycles.length) {
+    redirect('/motorcycles');
+  }
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
 
   return (
@@ -55,8 +54,18 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
         <p className="lede">Choose fixed pricing and pickup/drop details.</p>
 
         <form action={createBooking} className="flow-form">
-          <input type="hidden" name="customerId" value={searchParams.customerId} />
-          <input type="hidden" name="motorcycleId" value={searchParams.motorcycleId} />
+          <input type="hidden" name="customerId" value={user.customerProfileId} />
+
+          <label>
+            Motorcycle
+            <select name="motorcycleId" required>
+              {motorcycles.map((motorcycle) => (
+                <option key={motorcycle.id} value={motorcycle.id}>
+                  {motorcycle.registrationNumber} - {motorcycle.brand} {motorcycle.model}
+                </option>
+              ))}
+            </select>
+          </label>
 
           <label>
             Service package
@@ -107,4 +116,3 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
     </main>
   );
 }
-

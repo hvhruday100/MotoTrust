@@ -25,8 +25,7 @@ export const registerCustomerSchema = z
   .object({
     fullName: z.string().min(2).max(120),
     email: z.string().email().optional(),
-    phone: z.string().min(8).max(20).optional(),
-    firebaseUid: z.string().max(160).optional()
+    phone: z.string().min(8).max(20).optional()
   })
   .refine((value) => value.email || value.phone, {
     message: 'Either email or phone is required.',
@@ -73,9 +72,6 @@ export const createServiceBookingSchema = z.object({
 
 export const updateBookingStatusSchema = z.object({
   nextStatus: z.enum(bookingStatuses),
-  actorType: z.enum(bookingActorTypes),
-  actorName: z.string().min(2).max(120),
-  actorId: z.string().max(160).optional(),
   note: z.string().max(1000).optional()
 });
 
@@ -90,16 +86,11 @@ export const inspectionIssueSchema = z.object({
 
 export const createInspectionReportSchema = z.object({
   summary: z.string().max(1000).optional(),
-  createdByType: z.enum(bookingActorTypes),
-  createdById: z.string().max(160).optional(),
-  createdByName: z.string().min(2).max(120),
   issues: z.array(inspectionIssueSchema).min(1)
 });
 
 export const approveInspectionIssueSchema = z.object({
   approvalStatus: z.enum(['APPROVED', 'REJECTED']),
-  actorId: z.string().max(160).optional(),
-  actorName: z.string().min(2).max(120),
   note: z.string().max(1000).optional()
 });
 

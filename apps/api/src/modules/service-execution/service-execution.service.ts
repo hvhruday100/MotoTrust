@@ -1,6 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { BookingActorType, BookingStatus, Prisma, ServiceOrderStatus, ServiceTaskStatus } from '@prisma/client';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BookingStatus, Prisma, ServiceOrderStatus, ServiceTaskStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { AuthService } from '../auth/auth.service';
+import { AuthenticatedAppUser } from '../auth/auth.types';
 import { DEFAULT_SERVICE_TASKS, TaskWorkflowStatus } from './service-execution.constants';
 import { AddServiceTaskPartDto } from './dto/add-service-task-part.dto';
 import { ServiceExecutionResponseDto } from './dto/service-execution-response.dto';
@@ -42,7 +44,10 @@ type ServiceTaskPayload = Prisma.ServiceTaskGetPayload<{
 
 @Injectable()
 export class ServiceExecutionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly authService: AuthService
+  ) {}
 
   async initializeForBookingInService(tx: TransactionClient, bookingId: string): Promise<void> {
     const existing = await tx.serviceOrder.findUnique({
@@ -89,7 +94,7 @@ export class ServiceExecutionService {
     });
   }
 
-  async getByBookingId(bookingId: string): Promise<ServiceExecutionResponseDto> {
+  async getByBookingId(bookingId: string, user: AuthenticatedAppUser): Promise<ServiceExecutionResponseDto> {
     let serviceOrder = await this.prisma.serviceOrder.findUnique({
       where: { bookingId },
       include: {
@@ -145,10 +150,16 @@ export class ServiceExecutionService {
       throw new NotFoundException('Service execution workflow has not started for this booking.');
     }
 
+    this.assertBookingAccess(serviceOrder.booking.customerId, user);
+
     return this.toExecutionResponse(serviceOrder);
   }
 
-  async getAssignedTasks(mechanicId: string): Promise<ServiceTaskResponseDto[]> {
+  async getAssignedTasks(mechanicId: string, user: AuthenticatedAppUser): Promise<ServiceTaskResponseDto[]> {
+    if (user.role === 'MECHANIC' && user.id !== mechanicId) {
+      throw new ForbiddenException('Mechanics can only view tasks assigned to themselves.');
+    }
+
     const tasks = await this.prisma.serviceTask.findMany({
       where: { assignedMechanicId: mechanicId.trim() },
       include: {
@@ -169,7 +180,7 @@ export class ServiceExecutionService {
     return tasks.map((task) => this.toTaskResponse(task));
   }
 
-  async updateTask(taskId: string, dto: UpdateServiceTaskDto): Promise<ServiceTaskResponseDto> {
+  async updateTask(taskId: string, dto: UpdateServiceTaskDto, user: AuthenticatedAppUser): Promise<ServiceTaskResponseDto> {
     const task = await this.prisma.serviceTask.findUnique({
       where: { id: taskId },
       include: {
@@ -190,9 +201,9 @@ export class ServiceExecutionService {
       throw new NotFoundException('Service task not found.');
     }
 
-    const actorType = dto.actorType ?? BookingActorType.MECHANIC;
-    const actorName = dto.actorName?.trim() || 'Workshop Mechanic';
-    const actorId = dto.actorId?.trim() || null;
+    this.assertTaskMutationAccess(task.assignedMechanicId, user);
+
+    const actor = this.authService.toTimelineActor(user);
     const currentStatus = this.normalizeTaskStatus(task.status);
     const requestedStatus = dto.status ?? currentStatus;
     const nextAssignedMechanicId = this.normalizeNullableString(dto.assignedMechanicId);
@@ -251,9 +262,9 @@ export class ServiceExecutionService {
           bookingId: task.serviceOrder.bookingId,
           fromStatus: task.serviceOrder.booking.status,
           toStatus: task.serviceOrder.booking.status,
-          actorType,
-          actorId,
-          actorName,
+          actorType: actor.actorType,
+          actorId: actor.actorId,
+          actorName: actor.actorName,
           note: nextAssignedMechanicName
             ? `Assigned task "${task.name}" to ${nextAssignedMechanicName}.`
             : `Cleared mechanic assignment for task "${task.name}".`,
@@ -272,9 +283,9 @@ export class ServiceExecutionService {
           bookingId: task.serviceOrder.bookingId,
           fromStatus: task.serviceOrder.booking.status,
           toStatus: task.serviceOrder.booking.status,
-          actorType,
-          actorId,
-          actorName,
+          actorType: actor.actorType,
+          actorId: actor.actorId,
+          actorName: actor.actorName,
           note: `Updated notes for task "${task.name}".`,
           metadata: {
             action: 'SERVICE_TASK_NOTE_UPDATED',
@@ -289,9 +300,9 @@ export class ServiceExecutionService {
           bookingId: task.serviceOrder.bookingId,
           fromStatus: task.serviceOrder.booking.status,
           toStatus: task.serviceOrder.booking.status,
-          actorType,
-          actorId,
-          actorName,
+          actorType: actor.actorType,
+          actorId: actor.actorId,
+          actorName: actor.actorName,
           note: `Task "${task.name}" moved from ${this.toLabel(currentStatus)} to ${this.toLabel(requestedStatus)}.`,
           metadata: {
             action: 'SERVICE_TASK_STATUS_CHANGED',
@@ -313,7 +324,7 @@ export class ServiceExecutionService {
     return this.toTaskResponse(updated);
   }
 
-  async addPartUsage(taskId: string, dto: AddServiceTaskPartDto): Promise<ServiceTaskResponseDto> {
+  async addPartUsage(taskId: string, dto: AddServiceTaskPartDto, user: AuthenticatedAppUser): Promise<ServiceTaskResponseDto> {
     const task = await this.prisma.serviceTask.findUnique({
       where: { id: taskId },
       include: {
@@ -330,10 +341,9 @@ export class ServiceExecutionService {
     }
 
     this.assertBookingInService(task.serviceOrder.booking.status, 'record parts usage');
+    this.assertTaskMutationAccess(task.assignedMechanicId, user);
 
-    const actorType = dto.actorType ?? BookingActorType.MECHANIC;
-    const actorName = dto.actorName?.trim() || 'Workshop Mechanic';
-    const actorId = dto.actorId?.trim() || null;
+    const actor = this.authService.toTimelineActor(user);
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const part = await tx.part.upsert({
@@ -370,9 +380,9 @@ export class ServiceExecutionService {
           bookingId: task.serviceOrder.bookingId,
           fromStatus: task.serviceOrder.booking.status,
           toStatus: task.serviceOrder.booking.status,
-          actorType,
-          actorId,
-          actorName,
+          actorType: actor.actorType,
+          actorId: actor.actorId,
+          actorName: actor.actorName,
           note: `Recorded part usage for task "${task.name}": ${dto.name.trim()} x${dto.quantity}.`,
           metadata: {
             action: 'SERVICE_TASK_PART_USED',
@@ -408,6 +418,18 @@ export class ServiceExecutionService {
   private assertBookingInService(status: BookingStatus, action: string): void {
     if (status !== BookingStatus.IN_SERVICE) {
       throw new BadRequestException(`Booking must be IN_SERVICE before you can ${action}.`);
+    }
+  }
+
+  private assertBookingAccess(customerId: string, user: AuthenticatedAppUser): void {
+    if (user.role === 'CUSTOMER' && user.customerProfileId !== customerId) {
+      throw new ForbiddenException('You can only view service execution for your own booking.');
+    }
+  }
+
+  private assertTaskMutationAccess(assignedMechanicId: string | null, user: AuthenticatedAppUser): void {
+    if (user.role === 'MECHANIC' && assignedMechanicId && assignedMechanicId !== user.id) {
+      throw new ForbiddenException('Mechanics can only update tasks assigned to themselves.');
     }
   }
 

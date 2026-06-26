@@ -25,6 +25,7 @@ async function bootstrap() {
     .addTag('customers')
     .addTag('motorcycles')
     .addTag('pricing')
+    .addTag('auth')
     .addTag('bookings')
     .addTag('inspections')
     .addTag('service-execution')

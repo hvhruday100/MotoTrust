@@ -3,7 +3,6 @@ import Link from 'next/link';
 type BookingSuccessPageProps = {
   searchParams: {
     bookingId?: string;
-    customerId?: string;
   };
 };
 
@@ -21,9 +20,7 @@ export default function BookingSuccessPage({ searchParams }: BookingSuccessPageP
           <Link href={searchParams.bookingId ? `/bookings/progress?bookingId=${searchParams.bookingId}` : '/'}>
             Track progress
           </Link>
-          <Link href={searchParams.customerId ? `/bookings?customerId=${searchParams.customerId}` : '/register'}>
-            New booking
-          </Link>
+          <Link href="/bookings">New booking</Link>
         </div>
       </section>
     </main>

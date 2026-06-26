@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { api, BookingStatus } from '../../../lib/api';
 import { formatCurrency } from '@mototrust/ui';
+import { requireSessionUser } from '../../../lib/session';
 
 const bookingStatuses: BookingStatus[] = [
   'CREATED',
@@ -26,8 +27,6 @@ async function updateBookingStatus(formData: FormData) {
   const bookingId = String(formData.get('bookingId') ?? '');
   await api.updateBookingStatus(bookingId, {
     nextStatus: String(formData.get('nextStatus') ?? ''),
-    actorType: String(formData.get('actorType') ?? 'ADMIN'),
-    actorName: String(formData.get('actorName') ?? ''),
     note: String(formData.get('note') ?? '') || undefined
   });
 
@@ -43,6 +42,7 @@ function formatStatus(status: string) {
 }
 
 export default async function AdminBookingsPage() {
+  await requireSessionUser(['ADMIN']);
   const bookings = await api.listAdminBookings();
 
   return (
@@ -87,11 +87,6 @@ export default async function AdminBookingsPage() {
                   ))}
                 </select>
               </label>
-              <label>
-                Actor
-                <input name="actorName" defaultValue="Service Desk Admin" minLength={2} maxLength={120} required />
-              </label>
-              <input type="hidden" name="actorType" value="ADMIN" />
               <label>
                 Note
                 <input name="note" placeholder="Status update note" maxLength={1000} />

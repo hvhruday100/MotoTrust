@@ -1,3 +1,7 @@
+import 'server-only';
+
+import { cookies } from 'next/headers';
+
 type JsonObject = Record<string, unknown>;
 
 export type BookingStatus =
@@ -20,6 +24,17 @@ export type BookingActorType = 'CUSTOMER' | 'OPS' | 'MECHANIC' | 'ADMIN' | 'SYST
 export type InspectionIssueSeverity = 'CRITICAL' | 'RECOMMENDED' | 'OPTIONAL';
 export type IssueApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type ServiceTaskStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
+export type UserRole = 'CUSTOMER' | 'MECHANIC' | 'ADMIN';
+
+export type AppUser = {
+  id: string;
+  firebaseUid: string;
+  email?: string | null;
+  phone?: string | null;
+  displayName?: string | null;
+  role: UserRole;
+  customerProfileId?: string | null;
+};
 
 export type Customer = {
   id: string;
@@ -162,11 +177,13 @@ export type ServiceExecutionBoard = {
 const apiBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:4000';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = cookies().get('mototrust_token')?.value;
   const response = await fetch(`${apiBaseUrl}/api${path}`, {
     ...init,
     cache: 'no-store',
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers
     }
   });
@@ -192,6 +209,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input)
     });
+  },
+
+  listMotorcycles(customerId: string) {
+    return request<Motorcycle[]>(`/customers/${customerId}/motorcycles`);
   },
 
   listServicePackages() {
@@ -259,6 +280,17 @@ export const api = {
 
   addServiceTaskPart(taskId: string, input: JsonObject) {
     return request<ServiceTask>(`/service-tasks/${taskId}/parts`, {
+      method: 'POST',
+      body: JSON.stringify(input)
+    });
+  },
+
+  getCurrentUser() {
+    return request<AppUser>('/auth/me');
+  },
+
+  completeCustomerOnboarding(input: JsonObject) {
+    return request<Customer>('/auth/onboard/customer', {
       method: 'POST',
       body: JSON.stringify(input)
     });

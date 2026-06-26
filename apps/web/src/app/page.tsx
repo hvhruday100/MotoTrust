@@ -16,8 +16,8 @@ export default function HomePage() {
           Book fixed-price service, track the work, review proof, and keep a permanent digital history for every motorcycle.
         </p>
         <div className="actions">
-          <a href="/register">Start booking</a>
-          <a href="/account">View history</a>
+          <a href="/login">Log in</a>
+          <a href="/register">Complete profile</a>
           <a href="/admin/bookings">Operations</a>
         </div>
       </section>

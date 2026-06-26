@@ -1,5 +1,6 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { AuthenticatedAppUser } from '../auth/auth.types';
 import { CreateMotorcycleDto } from './dto/create-motorcycle.dto';
 import { MotorcycleResponseDto } from './dto/motorcycle-response.dto';
 
@@ -7,7 +8,11 @@ import { MotorcycleResponseDto } from './dto/motorcycle-response.dto';
 export class MotorcyclesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(customerId: string, dto: CreateMotorcycleDto): Promise<MotorcycleResponseDto> {
+  async create(customerId: string, dto: CreateMotorcycleDto, user: AuthenticatedAppUser): Promise<MotorcycleResponseDto> {
+    if (user.role === 'CUSTOMER' && user.customerProfileId !== customerId) {
+      throw new ForbiddenException('You can only add motorcycles to your own customer profile.');
+    }
+
     const customer = await this.prisma.customerProfile.findUnique({ where: { id: customerId } });
     if (!customer) {
       throw new NotFoundException('Customer not found.');
@@ -34,7 +39,11 @@ export class MotorcyclesService {
     return motorcycle;
   }
 
-  async listByCustomer(customerId: string): Promise<MotorcycleResponseDto[]> {
+  async listByCustomer(customerId: string, user: AuthenticatedAppUser): Promise<MotorcycleResponseDto[]> {
+    if (user.role === 'CUSTOMER' && user.customerProfileId !== customerId) {
+      throw new ForbiddenException('You can only view motorcycles on your own customer profile.');
+    }
+
     const customer = await this.prisma.customerProfile.findUnique({ where: { id: customerId } });
     if (!customer) {
       throw new NotFoundException('Customer not found.');
@@ -46,4 +55,3 @@ export class MotorcyclesService {
     });
   }
 }
-
