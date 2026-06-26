@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { BookingActorType, Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { BootstrapRoleDto } from './dto/bootstrap-role.dto';
@@ -9,45 +9,36 @@ export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
 
   async syncUser(identity: FirebaseIdentity): Promise<AuthenticatedAppUser> {
-    const existing = await this.prisma.user.findFirst({
-      where: {
-        OR: [
-          { firebaseUid: identity.firebaseUid },
-          ...(identity.email ? [{ email: identity.email }] : [])
-        ]
-      },
-      include: { customerProfile: true }
-    });
+    const lastLoginAt = new Date();
 
-    if (!existing) {
-      const created = await this.prisma.user.create({
-        data: {
+    try {
+      const synced = await this.prisma.user.upsert({
+        where: { firebaseUid: identity.firebaseUid },
+        update: {
+          email: identity.email ?? undefined,
+          phone: identity.phone ?? undefined,
+          displayName: identity.displayName ?? undefined,
+          lastLoginAt
+        },
+        create: {
           firebaseUid: identity.firebaseUid,
           email: identity.email,
           phone: identity.phone,
           displayName: identity.displayName,
           role: UserRole.CUSTOMER,
-          lastLoginAt: new Date()
+          lastLoginAt
         },
         include: { customerProfile: true }
       });
 
-      return this.toAuthenticatedUser(created);
+      return this.toAuthenticatedUser(synced);
+    } catch (error) {
+      if (this.isUniqueConstraintViolation(error, 'email') && identity.email) {
+        throw new ConflictException('This email address is already linked to another MotoTrust account.');
+      }
+
+      throw error;
     }
-
-    const updated = await this.prisma.user.update({
-      where: { id: existing.id },
-      data: {
-        firebaseUid: identity.firebaseUid,
-        email: identity.email ?? existing.email,
-        phone: identity.phone ?? existing.phone,
-        displayName: identity.displayName ?? existing.displayName,
-        lastLoginAt: new Date()
-      },
-      include: { customerProfile: true }
-    });
-
-    return this.toAuthenticatedUser(updated);
   }
 
   async getCurrentUser(userId: string): Promise<AuthenticatedAppUser> {
@@ -133,5 +124,14 @@ export class AuthService {
       role: user.role,
       customerProfileId: user.customerProfile?.id ?? null
     };
+  }
+
+  private isUniqueConstraintViolation(error: unknown, field: string): boolean {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
+      return false;
+    }
+
+    const target = Array.isArray(error.meta?.target) ? error.meta.target : [];
+    return target.includes(field);
   }
 }
