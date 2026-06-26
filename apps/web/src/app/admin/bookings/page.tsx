@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { api, BookingStatus } from '../../../lib/api';
 import { formatCurrency } from '@mototrust/ui';
+import { AppShell } from '../../../components/app-shell';
 import { requireSessionUser } from '../../../lib/session';
 
 const bookingStatuses: BookingStatus[] = [
@@ -44,17 +45,68 @@ function formatStatus(status: string) {
 export default async function AdminBookingsPage() {
   await requireSessionUser(['ADMIN']);
   const bookings = await api.listAdminBookings();
+  const delayedBookings = bookings.filter((booking) => {
+    if (booking.status === 'DELIVERED' || booking.status === 'CANCELLED') {
+      return false;
+    }
+
+    return new Date(booking.preferredPickupAt).getTime() < Date.now();
+  });
+  const approvalQueue = bookings.filter((booking) => booking.status === 'AWAITING_CUSTOMER_APPROVAL');
+  const activeService = bookings.filter((booking) => ['APPROVED_FOR_SERVICE', 'IN_SERVICE', 'QUALITY_CHECK'].includes(booking.status));
 
   return (
-    <main className="page">
-      <section className="ops-header">
-        <div>
-          <p className="eyebrow">Operations</p>
-          <h1>Booking lifecycle</h1>
-          <p className="lede">Update booking state and append an auditable timeline event.</p>
+    <AppShell
+      role="ADMIN"
+      currentPath="/admin/bookings"
+      eyebrow="Operations"
+      title="Booking lifecycle"
+      description="Review bookings, move status forward, and keep the auditable service timeline clean."
+      actions={<Link href="/">Home</Link>}
+    >
+      <section className="surface">
+        <div className="metric-grid">
+          <article className="metric-card">
+            <strong>{bookings.length}</strong>
+            <span>Total tracked bookings</span>
+          </article>
+          <article className="metric-card">
+            <strong>{delayedBookings.length}</strong>
+            <span>Delayed or overdue pickups</span>
+          </article>
+          <article className="metric-card">
+            <strong>{approvalQueue.length}</strong>
+            <span>Waiting for customer approval</span>
+          </article>
+          <article className="metric-card">
+            <strong>{activeService.length}</strong>
+            <span>Bookings in service pipeline</span>
+          </article>
         </div>
-        <Link href="/">Home</Link>
       </section>
+
+      {delayedBookings.length ? (
+        <section className="timeline-card" style={{ marginTop: 24 }}>
+          <h2>Priority queue</h2>
+          <ul className="summary-list">
+            {delayedBookings.slice(0, 3).map((booking) => (
+              <li key={booking.id}>
+                <strong>{booking.servicePackageName}</strong>
+                <p>
+                  {formatStatus(booking.status)} · Pickup scheduled for{' '}
+                  {new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(
+                    new Date(booking.preferredPickupAt)
+                  )}
+                </p>
+                <div className="actions">
+                  <Link href={`/admin/inspections?bookingId=${booking.id}`}>Inspection</Link>
+                  <Link href={`/bookings/progress?bookingId=${booking.id}`}>Timeline</Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="ops-list">
         {bookings.map((booking) => (
@@ -96,6 +148,6 @@ export default async function AdminBookingsPage() {
           </article>
         ))}
       </section>
-    </main>
+    </AppShell>
   );
 }

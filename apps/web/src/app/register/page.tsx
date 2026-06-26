@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { api } from '../../lib/api';
+import { AppShell } from '../../components/app-shell';
 import { requireSessionUser } from '../../lib/session';
 
 type RegisterPageProps = {
@@ -29,12 +30,14 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
   }
 
   return (
-    <main className="page form-page">
+    <AppShell
+      role="CUSTOMER"
+      currentPath="/register"
+      eyebrow="Step 1"
+      title="Complete customer profile"
+      description="Set up your MotoTrust account so bookings, approvals, and service history stay connected to one rider profile."
+    >
       <section className="form-shell">
-        <p className="eyebrow">Step 1</p>
-        <h1>Complete customer profile</h1>
-        <p className="lede">Create your MotoTrust customer profile before adding motorcycle details.</p>
-
         <form action={registerCustomer} className="flow-form">
           <label>
             Full name
@@ -71,6 +74,6 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
           <button type="submit">Continue</button>
         </form>
       </section>
-    </main>
+    </AppShell>
   );
 }

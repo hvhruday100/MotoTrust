@@ -1,8 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { FormEvent, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { AppShell } from '../../components/app-shell';
 import { getFirebaseAuth } from '../../lib/firebase';
 
 type Mode = 'login' | 'signup';
@@ -92,12 +94,14 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="page form-page">
+    <AppShell
+      currentPath="/login"
+      eyebrow="Authentication"
+      title={heading}
+      description="Use Firebase Authentication to access bookings, service operations, and live audit views."
+      actions={<Link href="/">Back home</Link>}
+    >
       <section className="form-shell">
-        <p className="eyebrow">Authentication</p>
-        <h1>{heading}</h1>
-        <p className="lede">Use Firebase Authentication to access bookings, service operations, and live audit views.</p>
-
         <div className="segmented-control" style={{ marginTop: 24 }}>
           <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>
             Log in
@@ -139,6 +143,6 @@ export default function LoginPage() {
           </button>
         </form>
       </section>
-    </main>
+    </AppShell>
   );
 }

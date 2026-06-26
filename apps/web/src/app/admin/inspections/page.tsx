@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { api } from '../../../lib/api';
+import { AppShell } from '../../../components/app-shell';
 import { requireSessionUser } from '../../../lib/session';
 
 type AdminInspectionsPageProps = {
@@ -47,7 +48,51 @@ async function createInspectionReport(formData: FormData) {
 export default async function AdminInspectionsPage({ searchParams }: AdminInspectionsPageProps) {
   await requireSessionUser(['ADMIN']);
   if (!searchParams.bookingId) {
-    redirect('/admin/bookings');
+    const bookings = await api.listAdminBookings();
+    const inspectionQueue = bookings.filter((booking) =>
+      ['RECEIVED_AT_SERVICE_CENTER', 'INSPECTION_COMPLETED', 'AWAITING_CUSTOMER_APPROVAL'].includes(booking.status)
+    );
+
+    return (
+      <AppShell
+        role="ADMIN"
+        currentPath="/admin/inspections"
+        eyebrow="Inspection"
+        title="Inspection monitoring"
+        description="See which bookings still need intake findings, which ones are awaiting customer action, and where to open the inspection report."
+        actions={<Link href="/admin/bookings">Back to bookings</Link>}
+      >
+        <section className="surface">
+          <div className="metric-grid">
+            <article className="metric-card">
+              <strong>{inspectionQueue.length}</strong>
+              <span>Bookings in inspection flow</span>
+            </article>
+            <article className="metric-card">
+              <strong>{inspectionQueue.filter((booking) => booking.status === 'AWAITING_CUSTOMER_APPROVAL').length}</strong>
+              <span>Waiting for customer decision</span>
+            </article>
+          </div>
+        </section>
+
+        <section className="ops-list">
+          {inspectionQueue.map((booking) => (
+            <article key={booking.id} className="booking-row">
+              <div className="booking-summary">
+                <p className="mono">{booking.id}</p>
+                <h2>{booking.servicePackageName}</h2>
+                <p>{booking.status.replaceAll('_', ' ')}</p>
+              </div>
+              <div className="actions">
+                <Link href={`/admin/inspections?bookingId=${booking.id}`}>Open inspection</Link>
+                <Link href={`/bookings/approval?bookingId=${booking.id}`}>Customer approval</Link>
+                <Link href={`/bookings/progress?bookingId=${booking.id}`}>Timeline</Link>
+              </div>
+            </article>
+          ))}
+        </section>
+      </AppShell>
+    );
   }
 
   let existingReport = null;
@@ -58,16 +103,14 @@ export default async function AdminInspectionsPage({ searchParams }: AdminInspec
   }
 
   return (
-    <main className="page">
-      <section className="ops-header">
-        <div>
-          <p className="eyebrow">Inspection</p>
-          <h1>Mechanic inspection report</h1>
-          <p className="lede">Create actionable issues with severity, cost estimate, and mock image references.</p>
-        </div>
-        <Link href="/admin/bookings">Back to bookings</Link>
-      </section>
-
+    <AppShell
+      role="ADMIN"
+      currentPath="/admin/inspections"
+      eyebrow="Inspection"
+      title="Mechanic inspection report"
+      description="Capture the issues discovered during intake so the customer can make clear approval decisions."
+      actions={<Link href="/admin/bookings">Back to bookings</Link>}
+    >
       {existingReport ? (
         <section className="timeline-card" style={{ marginTop: 32 }}>
           <h2>Existing inspection report</h2>
@@ -137,6 +180,6 @@ export default async function AdminInspectionsPage({ searchParams }: AdminInspec
           <button type="submit">Create inspection report</button>
         </form>
       )}
-    </main>
+    </AppShell>
   );
 }

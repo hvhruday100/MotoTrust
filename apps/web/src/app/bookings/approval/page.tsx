@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { api } from '../../../lib/api';
+import { AppShell } from '../../../components/app-shell';
 import { requireSessionUser } from '../../../lib/session';
 
 type BookingApprovalPageProps = {
@@ -33,32 +34,46 @@ export default async function BookingApprovalPage({ searchParams }: BookingAppro
   const report = await api.getInspectionReport(searchParams.bookingId);
 
   return (
-    <main className="page">
-      <section className="ops-header">
-        <div>
-          <p className="eyebrow">Customer approval</p>
-          <h1>Inspection decisions</h1>
-          <p className="lede">{report.summary ?? 'Review each issue and approve or reject it individually.'}</p>
-        </div>
-        <Link href={`/bookings/progress?bookingId=${report.bookingId}`}>Back to progress</Link>
-      </section>
-
+    <AppShell
+      role="CUSTOMER"
+      currentPath="/bookings"
+      eyebrow="Customer approval"
+      title="Inspection decisions"
+      description={report.summary ?? 'Review each issue and approve or reject it individually.'}
+      actions={<Link href={`/bookings/progress?bookingId=${report.bookingId}`}>Back to progress</Link>}
+    >
       <section className="timeline-card" style={{ marginTop: 24 }}>
         <h2>Approval summary</h2>
-        <p>
-          Pending: {report.approvalSummary.pendingIssues} · Critical approved: {report.approvalSummary.criticalApproved}/
-          {report.approvalSummary.criticalIssues}
-        </p>
-        <p>{report.approvalSummary.canStartService ? 'Ready for service start.' : 'Service start is still blocked.'}</p>
+        <div className="metric-grid">
+          <article className="metric-card">
+            <strong>{report.approvalSummary.pendingIssues}</strong>
+            <span>Pending decisions</span>
+          </article>
+          <article className="metric-card">
+            <strong>
+              {report.approvalSummary.criticalApproved}/{report.approvalSummary.criticalIssues}
+            </strong>
+            <span>Critical items approved</span>
+          </article>
+          <article className="metric-card">
+            <strong>{report.approvalSummary.canStartService ? 'Ready' : 'Blocked'}</strong>
+            <span>{report.approvalSummary.canStartService ? 'Service can begin.' : 'Critical items still need approval.'}</span>
+          </article>
+        </div>
       </section>
 
       <section className="issue-list">
         {report.issues.map((issue) => (
           <article key={issue.id} className="timeline-card">
-            <h2>{issue.title}</h2>
-            <p>
-              {issue.severity} · Parts {issue.estimatedPartsCost} · Labor {issue.estimatedLaborCost}
-            </p>
+            <div className="card-heading">
+              <div>
+                <h2>{issue.title}</h2>
+                <p>
+                  Parts {issue.estimatedPartsCost} · Labor {issue.estimatedLaborCost}
+                </p>
+              </div>
+              <span className={`pill pill-${issue.severity.toLowerCase()}`}>{issue.severity}</span>
+            </div>
             {issue.description ? <p>{issue.description}</p> : null}
             {issue.imageUrls.length ? <p>Images: {issue.imageUrls.join(', ')}</p> : null}
             <p>Status: {issue.approvalStatus}</p>
@@ -71,7 +86,7 @@ export default async function BookingApprovalPage({ searchParams }: BookingAppro
                   Note
                   <input name="note" placeholder="Optional note for this issue" maxLength={1000} />
                 </label>
-                <div className="actions">
+                <div className="approval-actions">
                   <button type="submit" name="decision" value="APPROVED">
                     Approve
                   </button>
@@ -88,6 +103,6 @@ export default async function BookingApprovalPage({ searchParams }: BookingAppro
           </article>
         ))}
       </section>
-    </main>
+    </AppShell>
   );
 }

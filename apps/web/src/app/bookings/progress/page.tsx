@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { api, BookingStatus, ServiceTask, ServiceTaskStatus } from '../../../lib/api';
 import { formatCurrency } from '@mototrust/ui';
+import { AppShell } from '../../../components/app-shell';
 import { requireSessionUser } from '../../../lib/session';
 
 const lifecycleStatuses: BookingStatus[] = [
@@ -64,20 +65,38 @@ export default async function BookingProgressPage({ searchParams }: ProgressPage
   const booking = await api.getBooking(searchParams.bookingId);
   const serviceExecution = await api.getServiceExecution(searchParams.bookingId).catch(() => null);
   const currentIndex = lifecycleStatuses.indexOf(booking.status);
+  const progressPercent =
+    currentIndex >= 0 ? Math.round(((currentIndex + 1) / lifecycleStatuses.length) * 100) : 0;
+  const nextStatus = currentIndex >= 0 && currentIndex < lifecycleStatuses.length - 1 ? lifecycleStatuses[currentIndex + 1] : null;
 
   return (
-    <main className="page">
-      <section className="ops-header">
-        <div>
-          <p className="eyebrow">Live progress</p>
-          <h1>{formatStatus(booking.status)}</h1>
-          <p className="lede">
-            {booking.servicePackageName} · {formatCurrency(booking.quotedPrice)}
-          </p>
-        </div>
+    <AppShell
+      role="CUSTOMER"
+      currentPath="/bookings"
+      eyebrow="Live progress"
+      title={formatStatus(booking.status)}
+      description={`${booking.servicePackageName} · ${formatCurrency(booking.quotedPrice)}`}
+      actions={
         <div className="actions">
-          <Link href="/">Home</Link>
+          <Link href="/bookings">All bookings</Link>
           <Link href={`/bookings/approval?bookingId=${booking.id}`}>Approval</Link>
+        </div>
+      }
+    >
+      <section className="surface">
+        <div className="metric-grid">
+          <article className="metric-card">
+            <strong>{progressPercent}%</strong>
+            <span>Booking completion</span>
+          </article>
+          <article className="metric-card">
+            <strong>{nextStatus ? formatStatus(nextStatus) : 'Completed'}</strong>
+            <span>Next milestone</span>
+          </article>
+          <article className="metric-card">
+            <strong>{serviceExecution?.tasks.length ?? 0}</strong>
+            <span>Tracked service tasks</span>
+          </article>
         </div>
       </section>
 
@@ -167,6 +186,6 @@ export default async function BookingProgressPage({ searchParams }: ProgressPage
           </div>
         </section>
       ) : null}
-    </main>
+    </AppShell>
   );
 }

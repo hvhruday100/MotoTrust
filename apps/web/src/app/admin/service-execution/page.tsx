@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { api, ServiceTask, ServiceTaskStatus } from '../../../lib/api';
 import { formatCurrency } from '@mototrust/ui';
+import { AppShell } from '../../../components/app-shell';
 import { requireSessionUser } from '../../../lib/session';
 
 const boardStatuses: ServiceTaskStatus[] = ['PENDING', 'IN_PROGRESS', 'COMPLETED'];
@@ -176,25 +177,90 @@ function renderTaskCard(task: ServiceTask, bookingId: string) {
 export default async function AdminServiceExecutionPage({ searchParams }: ServiceExecutionPageProps) {
   await requireSessionUser(['ADMIN']);
   if (!searchParams.bookingId) {
-    redirect('/admin/bookings');
+    const bookings = await api.listAdminBookings();
+    const executionQueue = bookings.filter((booking) =>
+      ['APPROVED_FOR_SERVICE', 'IN_SERVICE', 'QUALITY_CHECK', 'READY_FOR_DELIVERY'].includes(booking.status)
+    );
+
+    return (
+      <AppShell
+        role="ADMIN"
+        currentPath="/admin/service-execution"
+        eyebrow="Mechanic workflow"
+        title="Service execution overview"
+        description="Surface bookings that need mechanic assignment, active service tracking, or final quality confirmation."
+        actions={<Link href="/admin/bookings">Back to bookings</Link>}
+      >
+        <section className="surface">
+          <div className="metric-grid">
+            <article className="metric-card">
+              <strong>{executionQueue.length}</strong>
+              <span>Bookings in execution flow</span>
+            </article>
+            <article className="metric-card">
+              <strong>{executionQueue.filter((booking) => booking.status === 'APPROVED_FOR_SERVICE').length}</strong>
+              <span>Likely needing mechanic assignment</span>
+            </article>
+            <article className="metric-card">
+              <strong>{executionQueue.filter((booking) => booking.status === 'QUALITY_CHECK').length}</strong>
+              <span>Waiting for quality review</span>
+            </article>
+          </div>
+        </section>
+
+        <section className="ops-list">
+          {executionQueue.map((booking) => (
+            <article key={booking.id} className="booking-row">
+              <div className="booking-summary">
+                <p className="mono">{booking.id}</p>
+                <h2>{booking.servicePackageName}</h2>
+                <p>
+                  {formatCurrency(booking.quotedPrice)} · {formatLabel(booking.status)}
+                </p>
+              </div>
+              <div className="actions">
+                <Link href={`/admin/service-execution?bookingId=${booking.id}`}>Open board</Link>
+                <Link href={`/bookings/progress?bookingId=${booking.id}`}>Customer progress</Link>
+              </div>
+            </article>
+          ))}
+        </section>
+      </AppShell>
+    );
   }
 
   const board = await api.getServiceExecution(searchParams.bookingId);
   const assignedTasks = searchParams.mechanicId ? await api.listMechanicTasks(searchParams.mechanicId) : [];
+  const unassignedTasks = board.tasks.filter((task) => !task.assignedMechanicId);
 
   return (
-    <main className="page">
-      <section className="ops-header">
-        <div>
-          <p className="eyebrow">Mechanic workflow</p>
-          <h1>Service execution board</h1>
-          <p className="lede">
-            Booking {board.bookingId} · {formatLabel(board.bookingStatus)} · {formatLabel(board.serviceOrderStatus)}
-          </p>
-        </div>
+    <AppShell
+      role="ADMIN"
+      currentPath="/admin/service-execution"
+      eyebrow="Mechanic workflow"
+      title="Service execution board"
+      description={`Booking ${board.bookingId} · ${formatLabel(board.bookingStatus)} · ${formatLabel(board.serviceOrderStatus)}`}
+      actions={
         <div className="actions">
           <Link href="/admin/bookings">Back to bookings</Link>
           <Link href={`/bookings/progress?bookingId=${board.bookingId}`}>Customer progress</Link>
+        </div>
+      }
+    >
+      <section className="surface">
+        <div className="metric-grid">
+          <article className="metric-card">
+            <strong>{board.tasks.length}</strong>
+            <span>Total service tasks</span>
+          </article>
+          <article className="metric-card">
+            <strong>{unassignedTasks.length}</strong>
+            <span>Tasks missing mechanic assignment</span>
+          </article>
+          <article className="metric-card">
+            <strong>{board.tasks.filter((task) => task.status === 'IN_PROGRESS').length}</strong>
+            <span>Tasks currently active</span>
+          </article>
         </div>
       </section>
 
@@ -208,6 +274,20 @@ export default async function AdminServiceExecutionPage({ searchParams }: Servic
                 <span>
                   {task.bookingId} · {formatLabel(task.status)} · {task.assignedMechanicName ?? 'Unassigned'}
                 </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {unassignedTasks.length ? (
+        <section className="timeline-card" style={{ marginTop: 18 }}>
+          <h2>Assignment needed</h2>
+          <ul className="summary-list">
+            {unassignedTasks.map((task) => (
+              <li key={task.id}>
+                <strong>{task.name}</strong>
+                <p>{task.description ?? 'Assign a mechanic before work starts.'}</p>
               </li>
             ))}
           </ul>
@@ -229,6 +309,6 @@ export default async function AdminServiceExecutionPage({ searchParams }: Servic
           </div>
         ))}
       </section>
-    </main>
+    </AppShell>
   );
 }

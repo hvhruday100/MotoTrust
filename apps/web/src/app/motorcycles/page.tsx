@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { api } from '../../lib/api';
+import { AppShell } from '../../components/app-shell';
 import { requireSessionUser } from '../../lib/session';
 
 async function addMotorcycle(formData: FormData) {
@@ -23,13 +24,62 @@ export default async function MotorcyclesPage() {
   if (!user.customerProfileId) {
     redirect('/register');
   }
+  const motorcycles = await api.listMotorcycles(user.customerProfileId);
 
   return (
-    <main className="page form-page">
+    <AppShell
+      role="CUSTOMER"
+      currentPath="/motorcycles"
+      eyebrow="Step 2"
+      title="Add your motorcycle"
+      description="Save the bike once so future service bookings take only a few taps."
+    >
+      <section className="surface">
+        <h2 className="page-section-title">Saved motorcycles</h2>
+        <div className="metric-grid">
+          <article className="metric-card">
+            <strong>{motorcycles.length}</strong>
+            <span>Motorcycles on your account</span>
+          </article>
+          <article className="metric-card">
+            <strong>{motorcycles.length ? 'Ready' : 'Next step'}</strong>
+            <span>{motorcycles.length ? 'You can book service any time.' : 'Add your first motorcycle to continue.'}</span>
+          </article>
+        </div>
+
+        {motorcycles.length ? (
+          <div className="choice-grid">
+            {motorcycles.map((motorcycle) => (
+              <article key={motorcycle.id} className="choice-card">
+                <strong>
+                  {motorcycle.brand} {motorcycle.model}
+                </strong>
+                <p>{motorcycle.registrationNumber}</p>
+                <p>
+                  {motorcycle.variant ?? 'Variant not specified'}
+                  {motorcycle.odometerKm ? ` · ${motorcycle.odometerKm.toLocaleString('en-IN')} km` : ''}
+                </p>
+              </article>
+            ))}
+          </div>
+        ) : null}
+      </section>
+
       <section className="form-shell">
-        <p className="eyebrow">Step 2</p>
-        <h1>Add motorcycle</h1>
-        <p className="lede">Attach motorcycle details to the customer profile.</p>
+        <div className="step-strip">
+          <article className="step-card">
+            <strong>Identity ready</strong>
+            <p>Your customer profile is already linked to this session.</p>
+          </article>
+          <article className="step-card active">
+            <strong>Save the motorcycle</strong>
+            <p>Registration number and bike model are enough to get started.</p>
+          </article>
+          <article className="step-card">
+            <strong>Book service</strong>
+            <p>Next, choose pickup time and package.</p>
+          </article>
+        </div>
 
         <form action={addMotorcycle} className="flow-form">
           <input type="hidden" name="customerId" value={user.customerProfileId} />
@@ -69,6 +119,6 @@ export default async function MotorcyclesPage() {
           <button type="submit">Continue</button>
         </form>
       </section>
-    </main>
+    </AppShell>
   );
 }
